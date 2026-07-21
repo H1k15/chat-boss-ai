@@ -535,8 +535,8 @@ Checklist:
 
 1. Cài đặt: `pnpm install` tại thư mục gốc.
 2. Copy `.env.example` → `.env`, điền `ANTHROPIC_API_KEY`, `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`.
-3. `docker compose up -d postgres redis minio` → `pnpm --filter backend prisma migrate dev` → `pnpm --filter backend seed`.
-4. `pnpm dev` (chạy backend + dashboard). Build extension: `pnpm --filter extension build` rồi load `apps/extension/dist` vào Chrome (chế độ Developer).
+3. `docker compose up -d postgres redis minio` → `pnpm --filter @cba/backend prisma migrate dev` → `pnpm --filter @cba/backend seed`.
+4. `pnpm dev` (chạy backend + dashboard). Build extension: `pnpm --filter @cba/extension build` rồi load `apps/extension/dist` vào Chrome (chế độ Developer).
 5. Bắt đầu tick checklist Giai đoạn 1.
 
 > Bộ scaffold đi kèm đã tạo sẵn khung thư mục, `schema.prisma`, các module NestJS, khung extension và dashboard để đội bắt tay vào code ngay.

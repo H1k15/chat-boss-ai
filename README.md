@@ -7,11 +7,11 @@ Triết lý: **AI hỗ trợ người thật**, không spam/tự động điều
 ## Cấu trúc
 
 ```
-apps/backend     NestJS API + AI Engine + BullMQ queue + Prisma/PostgreSQL
+apps/backend     NestJS API + AI Engine + Prisma/PostgreSQL
 apps/dashboard   Next.js (admin / quản lý / sale)
 apps/extension   Chrome Extension MV3 (đọc hội thoại FB, gợi ý trả lời)
 packages/shared  Types & enums dùng chung
-docs/PLAN.md     Kế hoạch triển khai chi tiết  ← ĐỌC FILE NÀY TRƯỚC
+PLAN.md          Kế hoạch triển khai chi tiết  ← ĐỌC FILE NÀY TRƯỚC
 ```
 
 ## Bắt đầu nhanh
@@ -26,4 +26,6 @@ pnpm dev                        # backend :3001 + dashboard :3000
 pnpm --filter @cba/extension build   # rồi load apps/extension/dist vào Chrome
 ```
 
-Xem chi tiết kiến trúc, schema, API, roadmap trong [`docs/PLAN.md`](docs/PLAN.md).
+Xem chi tiết kiến trúc, schema, API, roadmap trong [`PLAN.md`](PLAN.md).
+
+> Lưu ý: chưa cài ESLint nên `pnpm lint` sẽ lỗi, dù mọi workspace đều khai báo script `lint`.
