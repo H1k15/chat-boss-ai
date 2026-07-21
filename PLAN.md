@@ -474,18 +474,18 @@ Sự kiện đẩy thông báo (mục 7.9 gốc): **khách để lại SĐT**, *
 **Mục tiêu:** đọc hội thoại → AI gợi ý → lưu khách → trích SĐT → đẩy Telegram.
 
 Checklist:
-- [ ] Monorepo + docker-compose (Postgres, Redis, MinIO) chạy được.
-- [ ] Prisma schema + migration cho: users, facebook_profiles, customers, rooms, conversations, messages, telegram_notifications, activity_logs.
-- [ ] Auth (login/refresh, RBAC cơ bản).
-- [ ] Excel import + file mẫu + màn danh sách phòng (dashboard).
+- [x] Monorepo + docker-compose (Postgres, Redis, MinIO) chạy được.
+- [x] Prisma schema + migration cho: users, facebook_profiles, customers, rooms, conversations, messages, telegram_notifications, activity_logs.
+- [x] Auth (login/refresh, RBAC cơ bản).
+- [ ] Excel import + file mẫu + màn danh sách phòng (dashboard). — còn thiếu file mẫu (`GET /excel/template` chưa có).
 - [x] `LlmProvider` (Claude + OpenAI, structured outputs) + IntentClassifier + InfoExtractor (SĐT regex) + RoomMatcher + ReplyGenerator + SafetyGuard.
 - [x] Auth guard toàn cục (mặc định mọi route cần JWT, opt-out bằng `@Public()`).
 - [x] Unit test cho SafetyGuard / InfoExtractor / Excel parser (53 test).
 - [ ] `POST /ai/suggest` chạy end-to-end với DB thật + API key thật.
-- [ ] Extension MV3: đọc hội thoại đang mở, sidebar hiển thị gợi ý + phòng, nút "Lưu khách".
-- [ ] Lưu lead + `POST /customers`.
-- [ ] Telegram: sự kiện "khách để lại SĐT".
-- [ ] Seed dữ liệu mẫu + hướng dẫn chạy.
+- [ ] Extension MV3: đọc hội thoại đang mở, sidebar hiển thị gợi ý + phòng, nút "Lưu khách". — selector Facebook còn là giá trị tạm; nút "Lưu khách" và "Tạo lịch hẹn" đã render nhưng chưa gắn handler.
+- [x] Lưu lead + `POST /customers`. — backend xong; phần gọi từ extension nằm ở mục trên.
+- [x] Telegram: sự kiện "khách để lại SĐT". — đã code, có chống trùng bằng `dedupeKey`; chưa chạy thử với bot token thật.
+- [x] Seed dữ liệu mẫu + hướng dẫn chạy.
 
 ### Giai đoạn 2 — CRM & chăm sóc khách
 - [ ] Đầy đủ trạng thái khách + màn chi tiết khách (hội thoại, phòng đã tư vấn, care history).
