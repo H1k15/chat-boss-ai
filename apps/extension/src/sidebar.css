@@ -1,0 +1,60 @@
+#cba-sidebar {
+  position: fixed;
+  top: 80px;
+  right: 16px;
+  width: 320px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 999999;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  color: #1a202c;
+}
+#cba-sidebar .cba-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #1877f2;
+  color: #fff;
+  border-radius: 12px 12px 0 0;
+}
+#cba-sidebar .cba-header button {
+  background: #fff;
+  color: #1877f2;
+  border: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+#cba-sidebar .cba-body { padding: 12px; }
+#cba-sidebar h4 { margin: 12px 0 6px; font-size: 12px; color: #4a5568; }
+#cba-sidebar .cba-sug {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+#cba-sidebar .cba-sug p { margin: 0 0 6px; }
+#cba-sidebar .cba-sug button,
+#cba-sidebar .cba-actions button {
+  background: #edf2f7;
+  border: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#cba-sidebar .cba-rooms { margin: 0; padding-left: 18px; }
+#cba-sidebar .cba-warn { color: #c05621; font-size: 12px; margin: 6px 0; }
+#cba-sidebar .cba-meta { color: #718096; font-size: 12px; margin-bottom: 8px; }
+#cba-sidebar .cba-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+#cba-sidebar .cba-actions button { flex: 1; }

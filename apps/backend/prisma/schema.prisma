@@ -1,0 +1,329 @@
+// Prisma schema — Chat Boss AI
+// Tiền tệ lưu bằng Int (VND) để tránh sai số dấu phẩy động.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================ ENUMS ============================
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+enum CustomerStatus {
+  NEW
+  ASKING_INFO
+  ADVISED
+  SENT_MEDIA
+  ASKED_PHONE
+  HAS_PHONE
+  APPOINTED
+  VIEWED
+  CONSIDERING
+  CLOSED
+  NOT_SUITABLE
+  NO_RESPONSE
+}
+
+enum Channel {
+  INBOX
+  COMMENT
+}
+
+enum CustomerIntent {
+  ASK_AVAILABILITY
+  ASK_PRICE
+  ASK_ADDRESS
+  ASK_UTILITIES
+  ASK_MEDIA
+  LEFT_PHONE
+  WANT_VIEWING
+  GREETING
+  SMALL_TALK
+  IRRELEVANT
+  OTHER
+}
+
+enum RoomStatus {
+  AVAILABLE
+  DEPOSITED
+  RENTED
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  ARRIVED
+  CANCELLED
+  NO_SHOW
+}
+
+enum CareTaskStatus {
+  PENDING
+  DONE
+  SNOOZED
+  CANCELLED
+}
+
+enum NotifyEvent {
+  LEFT_PHONE
+  APPOINTMENT
+  URGENT_CALL
+  EOD_REPORT
+  ROOM_LOW
+  CARE_REMINDER
+}
+
+// ============================ MODELS ============================
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  role         UserRole @default(STAFF)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  facebookProfiles FacebookProfile[]
+  assignedCustomers Customer[]       @relation("AssignedStaff")
+  appointments     Appointment[]     @relation("StaffAppointments")
+  careTasks        CareTask[]
+  activityLogs     ActivityLog[]
+
+  @@map("users")
+}
+
+model FacebookProfile {
+  id            String   @id @default(cuid())
+  displayName   String // Tên hiển thị nick (Nick A, Nick B...)
+  browserProfile String? // Tên profile trình duyệt đang dùng
+  area          String? // Khu vực phụ trách
+  isActive      Boolean  @default(true)
+  ownerId       String
+  owner         User     @relation(fields: [ownerId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  customers     Customer[]
+  conversations Conversation[]
+
+  @@index([ownerId])
+  @@map("facebook_profiles")
+}
+
+model Customer {
+  id           String         @id @default(cuid())
+  name         String?
+  phone        String?        @db.VarChar(20)
+  facebookName String?
+  sourceType   Channel        @default(INBOX)
+  areaNeed     String?
+  budgetMin    Int? // VND
+  budgetMax    Int? // VND
+  moveInDate   DateTime?
+  peopleCount  Int?
+  requirements String[]       @default([])
+  status       CustomerStatus @default(NEW)
+
+  sourceProfileId String?
+  sourceProfile   FacebookProfile? @relation(fields: [sourceProfileId], references: [id])
+
+  assignedToId String?
+  assignedTo   User?   @relation("AssignedStaff", fields: [assignedToId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversations Conversation[]
+  appointments  Appointment[]
+  careTasks     CareTask[]
+  notes         CustomerNote[]
+
+  @@index([status])
+  @@index([assignedToId])
+  @@index([phone])
+  @@map("customers")
+}
+
+model CustomerNote {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  authorId   String?
+  content    String
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
+  @@map("customer_notes")
+}
+
+model Conversation {
+  id                String   @id @default(cuid())
+  customerId        String
+  customer          Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  facebookProfileId String?
+  facebookProfile   FacebookProfile? @relation(fields: [facebookProfileId], references: [id])
+  channel           Channel  @default(INBOX)
+  lastMessage       String?
+  intent            CustomerIntent?
+  status            String   @default("open")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  messages Message[]
+
+  @@index([customerId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // "customer" | "staff" | "ai_suggestion"
+  text           String
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+model Room {
+  id              String     @id @default(cuid())
+  roomCode        String     @unique
+  area            String
+  address         String?
+  price           Int // VND
+  deposit         Int? // VND
+  size            Int? // m2
+  peopleCountMin  Int?
+  peopleCountMax  Int?
+  roomType        String? // gác, studio, phòng thường
+  wc              String? // "rieng" | "chung"
+  utilities       String[]   @default([]) // ["may_lanh","tu_lanh","nem"]
+  electricityPrice Int?
+  waterPrice      Int?
+  freeHours       Boolean    @default(true) // giờ giấc tự do
+  parking         Boolean    @default(false)
+  petAllowed      Boolean    @default(false)
+  status          RoomStatus @default(AVAILABLE)
+  imageLinks      String[]   @default([])
+  videoLinks      String[]   @default([])
+  managerName     String?
+  note            String?
+
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointments Appointment[]
+
+  @@index([area])
+  @@index([status])
+  @@index([price])
+  @@map("rooms")
+}
+
+model Appointment {
+  id                 String            @id @default(cuid())
+  customerId         String
+  customer           Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  roomId             String?
+  room               Room?             @relation(fields: [roomId], references: [id])
+  appointmentTime    DateTime
+  appointmentAddress String?
+  staffId            String?
+  staff              User?             @relation("StaffAppointments", fields: [staffId], references: [id])
+  status             AppointmentStatus @default(SCHEDULED)
+  note               String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([appointmentTime])
+  @@index([staffId])
+  @@map("appointments")
+}
+
+model CareTask {
+  id         String         @id @default(cuid())
+  customerId String
+  customer   Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  assignedToId String?
+  assignedTo   User?        @relation(fields: [assignedToId], references: [id])
+  dueAt      DateTime
+  reason     String? // vì sao cần chăm (chưa phản hồi, đã xem ảnh...)
+  status     CareTaskStatus @default(PENDING)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([dueAt])
+  @@index([status])
+  @@map("care_tasks")
+}
+
+model TelegramNotification {
+  id        String      @id @default(cuid())
+  event     NotifyEvent
+  payload   Json
+  chatId    String
+  sentAt    DateTime?
+  success   Boolean     @default(false)
+  error     String?
+  dedupeKey String?     @unique // chống gửi trùng
+  createdAt DateTime    @default(now())
+
+  @@index([event])
+  @@map("telegram_notifications")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String // "AI_SUGGEST", "SAFETY_BLOCK", "SEND_SEMI_AUTO", "EXPORT"...
+  entity    String? // "customer:123"
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@map("activity_logs")
+}
+
+model ReplyTemplate {
+  id        String   @id @default(cuid())
+  intent    String // CustomerIntent hoặc CustomerStatus (kịch bản chăm sóc)
+  label     String
+  content   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reply_templates")
+}
+
+model ImportBatch {
+  id        String   @id @default(cuid())
+  source    String // "excel" | "google_sheet"
+  fileName  String?
+  created   Int      @default(0)
+  updated   Int      @default(0)
+  errors    Json?
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  rooms Room[]
+
+  @@map("import_batches")
+}

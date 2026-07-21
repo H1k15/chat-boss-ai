@@ -1,0 +1,19 @@
+{
+  "name": "chat-boss-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hệ thống AI hỗ trợ tư vấn khách thuê nhà trọ qua Facebook cá nhân, Excel và Telegram",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.5.0"
+  }
+}
