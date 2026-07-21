@@ -3,6 +3,10 @@
 
 generator client {
   provider = "prisma-client-js"
+  // "native" cho máy dev. Bản musl phải chỉ đích danh openssl-3.0.x: image
+  // node:20-alpine dùng OpenSSL 3, còn target "linux-musl" trơn lại link vào
+  // libssl.so.1.1 nên container chết ngay lúc khởi tạo PrismaClient.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {

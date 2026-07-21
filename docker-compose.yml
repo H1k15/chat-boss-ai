@@ -41,13 +41,20 @@ services:
       context: .
       dockerfile: apps/backend/Dockerfile
     env_file: .env
+    environment:
+      # Ghi đè các URL hạ tầng: trong container "localhost" là chính container
+      # đó, phải gọi theo tên service. .env giữ localhost cho lúc chạy trên máy.
+      DATABASE_URL: postgresql://cba:cba@postgres:5432/chat_boss_ai?schema=public
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
     ports:
-      - "3001:3001"
+      # Cổng host đổi được để tránh đụng dịch vụ khác trên cùng máy.
+      - "${BACKEND_PORT:-3001}:3001"
     profiles: ["full"]
 
   dashboard:
@@ -60,7 +67,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "3000:3000"
+      - "${DASHBOARD_PORT:-3000}:3000"
     profiles: ["full"]
 
 volumes:

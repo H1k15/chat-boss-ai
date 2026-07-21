@@ -26,6 +26,27 @@ pnpm dev                        # backend :3001 + dashboard :3000
 pnpm --filter @cba/extension build   # rồi load apps/extension/dist vào Chrome
 ```
 
-Xem chi tiết kiến trúc, schema, API, roadmap trong [`PLAN.md`](PLAN.md).
+## Chạy toàn bộ bằng Docker
 
-> Lưu ý: chưa cài ESLint nên `pnpm lint` sẽ lỗi, dù mọi workspace đều khai báo script `lint`.
+```bash
+docker compose --profile full up -d --build
+```
+
+Backend `:3001`, dashboard `:3000`. Đổi cổng khi bị trùng với dịch vụ khác:
+
+```bash
+BACKEND_PORT=3011 DASHBOARD_PORT=3002 docker compose --profile full up -d
+```
+
+> **Đường dẫn có dấu tiếng Việt:** BuildKit lấy đường dẫn build context làm
+> session key gRPC, vốn chỉ nhận ASCII, nên build sẽ hỏng với lỗi khó hiểu
+> `header key "x-docker-expose-session-sharedkey" contains value with
+> non-printable ASCII characters`. Dùng builder cũ để vượt qua:
+>
+> ```bash
+> DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker compose --profile full build
+> ```
+>
+> Cách sửa triệt để là đặt repo ở đường dẫn thuần ASCII.
+
+Xem chi tiết kiến trúc, schema, API, roadmap trong [`PLAN.md`](PLAN.md).
