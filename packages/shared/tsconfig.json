@@ -1,12 +1,17 @@
 {
   "compilerOptions": {
     "target": "ES2021",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
+    // CommonJS vì backend (NestJS) require gói này lúc chạy. Dashboard và
+    // extension không đi qua đây: chúng alias thẳng vào src.
+    "module": "commonjs",
+    "moduleResolution": "node",
     "declaration": true,
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": "src"
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
 }

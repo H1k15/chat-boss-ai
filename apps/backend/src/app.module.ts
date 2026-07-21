@@ -19,7 +19,10 @@ import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    // Chỉ có một .env duy nhất ở gốc repo (khớp .env.example và
+    // docker-compose). cwd khi chạy là apps/backend nên phải trỏ ngược lên;
+    // '.env' đứng trước để môi trường triển khai riêng vẫn ghi đè được.
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', '../../.env'] }),
     PrismaModule,
     AuthModule,
     UsersModule,

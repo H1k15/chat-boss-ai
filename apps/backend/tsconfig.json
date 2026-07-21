@@ -11,10 +11,10 @@
     "strict": true,
     "strictPropertyInitialization": false,
     "outDir": "./dist",
-    "baseUrl": "./",
-    "paths": {
-      "@cba/shared": ["../../packages/shared/src"]
-    }
+    // Không map @cba/shared qua "paths": làm vậy kéo source của package vào
+    // chương trình, tsc suy rootDir thành gốc monorepo và dist bị lồng thêm
+    // tầng. Để Node resolve qua node_modules về bản đã build của shared.
+    "rootDir": "./"
   },
   "include": ["src", "prisma"],
   "exclude": ["node_modules", "dist"]

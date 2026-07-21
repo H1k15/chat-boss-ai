@@ -17,6 +17,9 @@ COPY apps/dashboard apps/dashboard
 ARG NEXT_PUBLIC_API_BASE=http://localhost:3001/api/v1
 ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
 
+# Next resolve @cba/shared qua "main" trỏ vào dist, nên shared phải build trước.
+RUN pnpm --filter @cba/shared build
+
 WORKDIR /app/apps/dashboard
 RUN pnpm build
 

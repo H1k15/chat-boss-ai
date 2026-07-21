@@ -5,12 +5,12 @@
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
-    "start": "node dist/main.js",
+    "start": "node dist/src/main.js",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "seed": "ts-node prisma/seed.ts",
-    "prisma": "prisma"
+    "seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts",
+    "prisma": "dotenv -e ../../.env -- prisma"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.4",
@@ -49,6 +49,7 @@
     "@types/node": "^20.14.0",
     "@types/node-telegram-bot-api": "^0.64.7",
     "@types/passport-jwt": "^4.0.1",
+    "dotenv-cli": "^7.4.2",
     "jest": "^29.7.0",
     "prisma": "^5.18.0",
     "ts-jest": "^29.2.0",

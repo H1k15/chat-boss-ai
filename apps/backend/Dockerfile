@@ -12,8 +12,12 @@ RUN pnpm install --frozen-lockfile || pnpm install
 COPY packages/shared packages/shared
 COPY apps/backend apps/backend
 
+# Phải build shared trước: backend lấy type từ packages/shared/dist và
+# require bản đã build lúc chạy, không dùng source TS.
+RUN pnpm --filter @cba/shared build
+
 WORKDIR /app/apps/backend
 RUN pnpm prisma generate && pnpm build
 
 EXPOSE 3001
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
