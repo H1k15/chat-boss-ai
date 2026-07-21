@@ -11,7 +11,8 @@ export class CareTasksService {
     if (query.staffId) where.assignedToId = query.staffId;
     if (query.status) where.status = query.status;
     if (query.due === 'today') {
-      const now = new Date();
+      // Không đặt mốc dưới: cố ý gồm cả task quá hạn từ ngày trước, vì
+      // nhân viên cần thấy việc tồn đọng chứ không chỉ việc phát sinh hôm nay.
       const end = new Date();
       end.setHours(23, 59, 59, 999);
       where.dueAt = { lte: end };
