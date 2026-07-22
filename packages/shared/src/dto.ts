@@ -4,6 +4,7 @@ import {
   CustomerIntent,
   NextAction,
   CustomerStatus,
+  NotifyEvent,
 } from './enums';
 
 export interface ConversationTurn {
@@ -74,4 +75,16 @@ export interface AiFeedbackRequest {
   finalText: string; // câu thực sự gửi cho khách
   chosenIndex?: number; // đã chọn gợi ý thứ mấy (0-based); tự soạn thì bỏ trống
   edited?: boolean; // có sửa lại gợi ý trước khi gửi không
+}
+
+// Cấu hình Telegram sửa được runtime (GET/PATCH /telegram/config).
+export interface TelegramConfig {
+  defaultChatId: string; // chat nhận thông báo (ghi đè giá trị .env nếu đặt)
+  events: Record<NotifyEvent, boolean>; // bật/tắt từng loại sự kiện
+}
+
+// GET /telegram/config trả kèm trạng thái chỉ-đọc (không sửa qua API).
+export interface TelegramConfigView extends TelegramConfig {
+  botConfigured: boolean; // TELEGRAM_BOT_TOKEN có được đặt trong .env không
+  envChatId: string; // giá trị chat mặc định từ .env (để tham chiếu)
 }
