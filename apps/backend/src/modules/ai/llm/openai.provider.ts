@@ -9,10 +9,15 @@ import {
 // Provider tuỳ chọn: OpenAI. Dùng json_schema response format (structured
 // outputs) — cùng ràng buộc schema với ClaudeProvider nên schema dùng chung
 // được, không cần viết hai bản.
+//
+// Đặt OPENAI_BASE_URL để trỏ vào server tương thích OpenAI chạy local
+// (Ollama, LM Studio, vLLM...). Ví dụ Ollama: http://localhost:11434/v1
+// Khi đó OPENAI_API_KEY chỉ cần một giá trị bất kỳ khác rỗng ("ollama").
 @Injectable()
 export class OpenAiProvider implements LlmProvider {
   private readonly client = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env.OPENAI_API_KEY || 'not-needed-for-local',
+    baseURL: process.env.OPENAI_BASE_URL || undefined,
     maxRetries: 3,
   });
   private readonly model = process.env.OPENAI_MODEL || 'gpt-4o-mini';

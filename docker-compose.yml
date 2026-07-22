@@ -47,6 +47,10 @@ services:
       DATABASE_URL: postgresql://cba:cba@postgres:5432/chat_boss_ai?schema=public
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
+      # Ollama chạy trên máy host, không phải trong mạng compose. Container gọi
+      # ngược về host qua host.docker.internal (Docker Desktop tự phân giải).
+      # .env giữ localhost:11434 cho lúc backend chạy thẳng trên máy.
+      OPENAI_BASE_URL: http://host.docker.internal:11434/v1
     depends_on:
       postgres:
         condition: service_healthy
