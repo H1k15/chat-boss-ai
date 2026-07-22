@@ -62,4 +62,16 @@ export interface AiSuggestResponse {
     blocked: boolean;
     reasons: string[];
   };
+  // Mã của lần gợi ý này (ghi vào activity_logs). Extension giữ lại để khi
+  // nhân viên gửi thật thì gọi POST /ai/feedback kèm mã này — nhờ đó ghép được
+  // cặp "AI đề xuất -> người gửi", tín hiệu để fine-tune sau này.
+  suggestionLogId?: string;
+}
+
+// Request cho POST /ai/feedback — nhân viên báo đã gửi câu nào.
+export interface AiFeedbackRequest {
+  suggestionLogId: string; // lấy từ AiSuggestResponse
+  finalText: string; // câu thực sự gửi cho khách
+  chosenIndex?: number; // đã chọn gợi ý thứ mấy (0-based); tự soạn thì bỏ trống
+  edited?: boolean; // có sửa lại gợi ý trước khi gửi không
 }

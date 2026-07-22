@@ -6,7 +6,7 @@ import {
   CustomerStatus,
   ExtractedInfo,
 } from '@cba/shared';
-import { Customer } from '@prisma/client';
+import { Customer, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IntentClassifierService } from './pipeline/intent-classifier.service';
 import { InfoExtractorService } from './pipeline/info-extractor.service';
@@ -73,6 +73,14 @@ export class AiService {
       await this.updateCustomer(customer, extracted);
     }
 
+    // Ghi lại lần gợi ý này để sau ghép với câu nhân viên thực sự gửi.
+    const suggestionLogId = await this.logAiSuggest(req, userId, {
+      intent,
+      extracted,
+      suggestions: safe.safeSuggestions,
+      matchedRoomCodes: matchedRooms.map((r) => r.roomCode),
+    });
+
     return {
       intent,
       extracted,
@@ -81,7 +89,92 @@ export class AiService {
       nextAction,
       customerStageHint: this.stageHint(intent, extracted),
       safety: { blocked: safe.blocked, reasons: safe.reasons },
+      suggestionLogId,
     };
+  }
+
+  /**
+   * Ghi lại một lần AI đề xuất (action AI_SUGGEST). Trả về id của log để
+   * extension nhớ, rồi khi nhân viên gửi thật thì gọi recordSent() kèm id này.
+   * Không để lỗi ghi log làm hỏng việc trả gợi ý — trả undefined nếu ghi hụt.
+   */
+  private async logAiSuggest(
+    req: AiSuggestRequest,
+    userId: string | undefined,
+    payload: {
+      intent: CustomerIntent;
+      extracted: ExtractedInfo;
+      suggestions: string[];
+      matchedRoomCodes: string[];
+    },
+  ): Promise<string | undefined> {
+    try {
+      const log = await this.prisma.activityLog.create({
+        data: {
+          userId: userId ?? null,
+          action: 'AI_SUGGEST',
+          entity: req.customerId ? `customer:${req.customerId}` : null,
+          // Chuẩn hoá qua JSON để loại bỏ mọi field undefined (JSON không biểu
+          // diễn được undefined, và Prisma cũng không nhận vào cột Json).
+          meta: JSON.parse(
+            JSON.stringify({
+              channel: req.channel,
+              facebookProfileId: req.facebookProfileId,
+              lastCustomerText: this.lastCustomerText(req),
+              ...payload,
+            }),
+          ) as Prisma.InputJsonObject,
+        },
+      });
+      return log.id;
+    } catch (e) {
+      this.logger.warn(`Không ghi được AI_SUGGEST: ${e}`);
+      return undefined;
+    }
+  }
+
+  /**
+   * Nhân viên báo đã gửi câu gì cho khách (action AI_SEND). Ghép với AI_SUGGEST
+   * qua suggestionLogId. Chênh lệch giữa gợi ý và câu gửi thật là dữ liệu vàng
+   * để fine-tune model sau này.
+   */
+  async recordSent(
+    userId: string | undefined,
+    fb: {
+      suggestionLogId: string;
+      finalText: string;
+      chosenIndex?: number;
+      edited?: boolean;
+    },
+  ): Promise<{ ok: boolean }> {
+    try {
+      await this.prisma.activityLog.create({
+        data: {
+          userId: userId ?? null,
+          action: 'AI_SEND',
+          entity: `suggest:${fb.suggestionLogId}`,
+          meta: {
+            suggestionLogId: fb.suggestionLogId,
+            finalText: fb.finalText,
+            chosenIndex: fb.chosenIndex ?? null,
+            edited: fb.edited ?? null,
+          },
+        },
+      });
+      return { ok: true };
+    } catch (e) {
+      this.logger.warn(`Không ghi được AI_SEND: ${e}`);
+      return { ok: false };
+    }
+  }
+
+  /** Lấy tin nhắn cuối cùng của khách trong hội thoại (để lưu kèm log). */
+  private lastCustomerText(req: AiSuggestRequest): string | undefined {
+    for (let i = req.conversation.length - 1; i >= 0; i--) {
+      if (req.conversation[i].role === 'customer')
+        return req.conversation[i].text;
+    }
+    return undefined;
   }
 
   /** Đọc dữ liệu khách trong DB về dạng ExtractedInfo để merge. */
