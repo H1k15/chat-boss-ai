@@ -32,6 +32,8 @@ const llmProvider = {
     OpenAiProvider,
     llmProvider,
   ],
-  exports: [AiService],
+  // RoomMatcher là logic thuần DB (không LLM), cho module khác dùng lại được
+  // — POST /rooms/match tái dùng đúng logic lọc phòng của pipeline.
+  exports: [AiService, RoomMatcherService],
 })
 export class AiModule {}

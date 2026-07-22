@@ -35,4 +35,26 @@ export class ReportsService {
       _count: { _all: true },
     });
   }
+
+  // Phòng nào được hẹn xem nhiều nhất — gộp lịch hẹn theo phòng, kèm mã phòng.
+  async byRoom() {
+    const grouped = await this.prisma.appointment.groupBy({
+      by: ['roomId'],
+      where: { roomId: { not: null } },
+      _count: { _all: true },
+      orderBy: { _count: { roomId: 'desc' } },
+    });
+    const roomIds = grouped
+      .map((g) => g.roomId)
+      .filter((id): id is string => Boolean(id));
+    const rooms = await this.prisma.room.findMany({
+      where: { id: { in: roomIds } },
+      select: { id: true, roomCode: true, area: true, status: true },
+    });
+    const byId = new Map(rooms.map((r) => [r.id, r]));
+    return grouped.map((g) => ({
+      room: g.roomId ? byId.get(g.roomId) : null,
+      appointments: g._count._all,
+    }));
+  }
 }

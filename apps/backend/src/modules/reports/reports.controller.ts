@@ -19,4 +19,9 @@ export class ReportsController {
   byArea() {
     return this.reports.byArea();
   }
+
+  @Get('by-room')
+  byRoom() {
+    return this.reports.byRoom();
+  }
 }

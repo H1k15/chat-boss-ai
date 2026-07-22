@@ -4,6 +4,53 @@ import { Prisma, RoomStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { normalizeKey } from '../../common/vietnamese';
 
+// Header + 1 dòng mẫu cho file template tải về. Header dùng đúng tên có dấu để
+// người nhập dễ đọc; parser vẫn nhận nhờ COLUMN_ALIASES đã bỏ dấu.
+const TEMPLATE_HEADER = [
+  'Mã phòng',
+  'Khu vực',
+  'Địa chỉ',
+  'Giá',
+  'Cọc',
+  'Diện tích',
+  'Số người ở',
+  'Loại phòng',
+  'WC',
+  'Nội thất',
+  'Giá điện',
+  'Giá nước',
+  'Giờ giấc',
+  'Chỗ để xe',
+  'Thú cưng',
+  'Trạng thái',
+  'Link ảnh',
+  'Link video',
+  'Người phụ trách',
+  'Ghi chú',
+];
+const TEMPLATE_SAMPLE = [
+  'P001',
+  'Gò Vấp',
+  'Phan Văn Trị, Gò Vấp',
+  3800000,
+  3800000,
+  20,
+  2,
+  'gác',
+  'riêng',
+  'máy lạnh, gác',
+  4000,
+  100000,
+  'tự do',
+  'có',
+  'không',
+  'Còn',
+  '',
+  '',
+  '',
+  '',
+];
+
 export interface ImportError {
   row: number;
   roomCode?: string;
@@ -62,6 +109,22 @@ export class ExcelService {
   private readonly logger = new Logger(ExcelService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Sinh file .xlsx mẫu đúng cấu trúc cột để người dùng tải về. */
+  buildTemplate(): Buffer {
+    const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADER, TEMPLATE_SAMPLE]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Phòng');
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  }
+
+  /** Lịch sử các lần import (mới nhất trước). */
+  listBatches(limit = 50) {
+    return this.prisma.importBatch.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
 
   async importBuffer(
     buffer: Buffer,

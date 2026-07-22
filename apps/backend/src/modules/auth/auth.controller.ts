@@ -23,4 +23,12 @@ export class AuthController {
   me(@Req() req: AuthenticatedRequest) {
     return this.auth.me(req.user.userId);
   }
+
+  // JWT là stateless nên đăng xuất chủ yếu là client tự xoá token. Endpoint
+  // này để client gọi cho nhất quán; thu hồi token thật cần danh sách chặn
+  // (denylist) — chưa dựng, ghi lại làm việc sau nếu cần bảo mật chặt hơn.
+  @Post('logout')
+  logout() {
+    return { ok: true };
+  }
 }

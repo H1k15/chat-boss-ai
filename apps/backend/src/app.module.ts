@@ -16,6 +16,7 @@ import { AiModule } from './modules/ai/ai.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 import { ExcelModule } from './modules/excel/excel.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { ExtensionModule } from './modules/extension/extension.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     TelegramModule,
     ExcelModule,
     ReportsModule,
+    ExtensionModule,
   ],
   // Guard đăng ký toàn cục: mặc định MỌI route đều phải đăng nhập, trừ route
   // gắn @Public(). Thứ tự quan trọng — xác thực (JWT) phải chạy trước phân

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   AiSuggestRequest,
   AiSuggestResponse,
+  ConversationTurn,
   CustomerIntent,
   CustomerStatus,
   ExtractedInfo,
@@ -175,6 +176,31 @@ export class AiService {
         return req.conversation[i].text;
     }
     return undefined;
+  }
+
+  /**
+   * Chỉ trích xuất thông tin khách, không sinh câu trả lời (POST /ai/extract).
+   * Nhẹ hơn suggest — dùng khi chỉ cần cập nhật CRM chứ chưa cần gợi ý.
+   */
+  async extractOnly(req: {
+    conversation: ConversationTurn[];
+    customerId?: string;
+  }): Promise<ExtractedInfo> {
+    const customer = req.customerId
+      ? await this.prisma.customer.findUnique({ where: { id: req.customerId } })
+      : null;
+    const known = customer ? this.toExtractedInfo(customer) : undefined;
+    return this.extractor.extract(req.conversation, known);
+  }
+
+  /**
+   * Phân loại nhanh ý định của MỘT comment (POST /ai/classify-comment).
+   * Dùng cho luồng xử lý comment dưới bài đăng — quyết định có nên gợi ý trả
+   * lời cạnh comment hay bỏ qua.
+   */
+  async classifyComment(text: string): Promise<{ intent: CustomerIntent }> {
+    const intent = await this.intent.classify([{ role: 'customer', text }]);
+    return { intent };
   }
 
   /** Đọc dữ liệu khách trong DB về dạng ExtractedInfo để merge. */
