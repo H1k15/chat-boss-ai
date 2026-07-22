@@ -1,11 +1,13 @@
 import { Channel } from '@cba/shared';
 import { readConversation } from './reader';
 import { mountSidebar, renderSuggestions } from './sidebar';
+import { installSendWatcher } from './feedback';
 import { aiSuggest } from '../api';
 
 // Content script: gắn sidebar, lắng nghe nút "Gợi ý trả lời".
 function init() {
   mountSidebar();
+  installSendWatcher(); // bắt sự kiện gửi để ghi lại câu nhân viên gửi thật
 
   document.getElementById('cba-refresh')?.addEventListener('click', async () => {
     const conversation = readConversation();

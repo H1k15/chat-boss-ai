@@ -1,5 +1,6 @@
 import type { AiSuggestResponse } from '@cba/shared';
 import { insertIntoComposer } from './reader';
+import { setActiveSuggestion, markInserted } from './feedback';
 
 // Sidebar hiển thị gợi ý AI + phòng phù hợp + nút thao tác.
 // Nhân viên chọn gợi ý -> chèn vào ô soạn -> tự bấm gửi (human-in-the-loop).
@@ -29,6 +30,9 @@ export function renderSuggestions(res: AiSuggestResponse) {
   const body = document.getElementById('cba-body');
   if (!body) return;
 
+  // Ghi nhớ lần gợi ý này để khi nhân viên gửi thì ghép được cặp dữ liệu.
+  setActiveSuggestion(res.suggestionLogId, res.suggestions);
+
   const rooms = res.matchedRooms
     .map(
       (r) =>
@@ -55,6 +59,7 @@ export function renderSuggestions(res: AiSuggestResponse) {
     btn.addEventListener('click', () => {
       const i = Number(btn.dataset.i);
       insertIntoComposer(res.suggestions[i]);
+      markInserted(i); // để biết nhân viên đã chọn gợi ý thứ mấy
     });
   });
 }
