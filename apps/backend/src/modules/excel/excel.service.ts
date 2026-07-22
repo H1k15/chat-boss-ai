@@ -137,7 +137,19 @@ export class ExcelService {
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
       wb.Sheets[sheetName],
     );
+    return this.importRows(rows, 'excel', fileName, userId);
+  }
 
+  /**
+   * Chuẩn hoá + upsert từ các dòng đã đọc (chung cho Excel và Google Sheet).
+   * `rows` là mảng object header->giá trị; `source` là "excel"|"google_sheet".
+   */
+  async importRows(
+    rows: Record<string, unknown>[],
+    source: string,
+    label?: string,
+    userId?: string,
+  ): Promise<ImportResult> {
     // Lập bản đồ cột MỘT LẦN từ header, thay vì dò lại trên từng dòng.
     const columnMap = this.mapColumns(rows[0] ?? {});
     const missingColumns = REQUIRED_COLUMNS.filter(
@@ -145,7 +157,7 @@ export class ExcelService {
     ).map((f) => f as string);
 
     const batch = await this.prisma.importBatch.create({
-      data: { source: 'excel', fileName, createdBy: userId },
+      data: { source, fileName: label, createdBy: userId },
     });
 
     const errors: ImportError[] = [];
@@ -210,7 +222,7 @@ export class ExcelService {
 
     if (missingColumns.length) {
       this.logger.warn(
-        `Import ${fileName}: thiếu cột bắt buộc ${missingColumns.join(', ')}`,
+        `Import ${label}: thiếu cột bắt buộc ${missingColumns.join(', ')}`,
       );
     }
 
