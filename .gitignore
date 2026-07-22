@@ -7,6 +7,9 @@ dist/
 .env.local
 secrets/
 coverage/
+# Dữ liệu xuất để fine-tune — chứa tin nhắn khách thật (PII), KHÔNG commit.
+exports/
+apps/backend/exports/
 apps/extension/dist/
 apps/backend/prisma/*.db
 .DS_Store

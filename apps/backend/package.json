@@ -11,6 +11,7 @@
     "test": "jest",
     "seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts",
     "seed:templates": "dotenv -e ../../.env -- ts-node prisma/seed-templates.ts",
+    "export:finetune": "dotenv -e ../../.env -- ts-node prisma/export-finetune.ts",
     "prisma": "dotenv -e ../../.env -- prisma"
   },
   "dependencies": {
