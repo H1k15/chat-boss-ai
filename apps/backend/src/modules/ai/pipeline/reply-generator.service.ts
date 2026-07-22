@@ -11,7 +11,11 @@ import {
   LlmProvider,
   strictObject,
 } from '../llm/llm-provider.interface';
-import { buildReplySystem, formatConversation } from '../prompts';
+import {
+  buildCareSystem,
+  buildReplySystem,
+  formatConversation,
+} from '../prompts';
 
 // [4] Sinh 2-3 gợi ý câu trả lời — chỉ dùng dữ liệu phòng đã match.
 @Injectable()
@@ -57,6 +61,33 @@ export class ReplyGeneratorService {
       suggestions: (result.suggestions ?? []).slice(0, 3),
       nextAction: result.nextAction ?? NextAction.ASK_INFO,
     };
+  }
+
+  // Sinh 2-3 câu NHẮN LẠI chăm sóc khách cũ. Dùng chung ràng buộc phòng với
+  // generate(), nên SafetyGuard vẫn bảo vệ được đầu ra y như luồng suggest.
+  async generateCare(params: {
+    extracted: ExtractedInfo;
+    matchedRooms: MatchedRoom[];
+    reason?: string;
+    customerName?: string;
+  }): Promise<string[]> {
+    const userContent = [
+      `THONG_TIN_KHACH: ${JSON.stringify(this.forPrompt(params.extracted))}`,
+      `TEN_KHACH: ${params.customerName ?? ''}`,
+      `LY_DO_CHAM: ${params.reason ?? '(không rõ)'}`,
+      `DU_LIEU_PHONG: ${JSON.stringify(params.matchedRooms.map((r) => this.roomForPrompt(r)))}`,
+    ].join('\n\n');
+
+    const result = await this.llm.completeJson<{ suggestions: string[] }>({
+      system: buildCareSystem(),
+      schemaName: 'care_suggestions',
+      messages: [{ role: 'user', content: userContent }],
+      jsonSchema: strictObject({
+        suggestions: { type: 'array', items: { type: 'string' } },
+      }),
+      maxTokens: 768,
+    });
+    return (result.suggestions ?? []).slice(0, 3);
   }
 
   /** Không đưa SĐT khách vào prompt sinh câu trả lời — model không cần nó. */

@@ -43,6 +43,26 @@ QUY TẮC BẮT BUỘC:
   đổi vài từ) để nhân viên chọn.`;
 }
 
+// Prompt sinh câu NHẮN LẠI CHĂM SÓC khách cũ (proactive, không phải trả lời
+// tin mới). Giữ nguyên các quy tắc an toàn về dữ liệu phòng như buildReplySystem.
+export function buildCareSystem(): string {
+  return `Bạn soạn tin NHẮN LẠI cho NHÂN VIÊN để chăm sóc khách thuê trọ đã hỏi trước đó nhưng chưa chốt (KHÔNG phải chatbot tự gửi).
+
+BỐI CẢNH: đây là tin NHẮN CHỦ ĐỘNG khơi lại, không phải trả lời tin mới của khách. Mục tiêu là kéo khách quay lại mà không làm phiền.
+
+QUY TẮC BẮT BUỘC:
+- CHỈ dùng thông tin phòng trong khối "DU_LIEU_PHONG". Tuyệt đối KHÔNG bịa giá,
+  địa chỉ, tiện ích hay trạng thái phòng. Mọi con số giá phải khớp đúng một phòng.
+- DU_LIEU_PHONG rỗng thì soạn tin hỏi thăm chung (nhắc lại nhu cầu khách, hỏi
+  còn đang tìm phòng không), KHÔNG phỏng đoán phòng.
+- KHÔNG viết số điện thoại vào câu.
+- Xưng "em", gọi khách "anh/chị". Nhắc khéo nhu cầu khách đã nói (khu vực,
+  ngân sách) để khách thấy được nhớ. Ngắn gọn, tự nhiên, KHÔNG khách sáo.
+- Dựa vào LY_DO_CHAM để chọn cách khơi lại (chưa phản hồi / đã xem ảnh / hẹn
+  hụt...). Luôn hướng tới bước tiếp: gửi thêm phòng, hẹn xem, xin lịch tiện.
+- Tối đa 2-3 câu mỗi gợi ý. Đưa 2-3 phương án KHÁC NHAU về cách tiếp cận.`;
+}
+
 /** Định dạng hội thoại thành text cho LLM đọc. Dùng chung cả 3 bước. */
 export function formatConversation(conversation: ConversationTurn[]): string {
   return conversation

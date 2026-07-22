@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   AiSuggestRequest,
   AiSuggestResponse,
@@ -6,6 +6,7 @@ import {
   CustomerIntent,
   CustomerStatus,
   ExtractedInfo,
+  MatchedRoom,
 } from '@cba/shared';
 import { Customer, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -201,6 +202,40 @@ export class AiService {
   async classifyComment(text: string): Promise<{ intent: CustomerIntent }> {
     const intent = await this.intent.classify([{ role: 'customer', text }]);
     return { intent };
+  }
+
+  /**
+   * Gợi ý câu nhắn lại chăm sóc cho một care task (POST /care-tasks/:id/suggest).
+   * Tái dùng lọc phòng + SafetyGuard của pipeline: chặn giá/SĐT bịa như suggest.
+   */
+  async suggestCareForTask(careTaskId: string): Promise<{
+    suggestions: string[];
+    matchedRooms: MatchedRoom[];
+    safety: { blocked: boolean; reasons: string[] };
+  }> {
+    const task = await this.prisma.careTask.findUnique({
+      where: { id: careTaskId },
+      include: { customer: true },
+    });
+    if (!task || !task.customer) {
+      throw new NotFoundException('Không tìm thấy care task hoặc khách');
+    }
+
+    const info = this.toExtractedInfo(task.customer);
+    const matchedRooms = await this.matcher.match(info);
+    const raw = await this.replies.generateCare({
+      extracted: info,
+      matchedRooms,
+      reason: task.reason ?? undefined,
+      customerName: task.customer.name ?? undefined,
+    });
+
+    const safe = this.safety.check(raw, matchedRooms);
+    return {
+      suggestions: safe.safeSuggestions,
+      matchedRooms,
+      safety: { blocked: safe.blocked, reasons: safe.reasons },
+    };
   }
 
   /** Đọc dữ liệu khách trong DB về dạng ExtractedInfo để merge. */
