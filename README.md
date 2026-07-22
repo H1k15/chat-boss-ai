@@ -22,9 +22,14 @@ cp .env.example .env            # điền ANTHROPIC_API_KEY, TELEGRAM_BOT_TOKEN.
 docker compose up -d postgres redis minio
 pnpm --filter @cba/backend prisma migrate dev
 pnpm --filter @cba/backend seed
+pnpm --filter @cba/backend seed:templates   # khung mẫu câu AI
 pnpm dev                        # backend :3001 + dashboard :3000
 pnpm --filter @cba/extension build   # rồi load apps/extension/dist vào Chrome
 ```
+
+> 📖 **Hướng dẫn chạy chi tiết** (cấu hình AI, cách chạy Docker, lỗi thường
+> gặp): [`HUONG-DAN-CHAY.md`](HUONG-DAN-CHAY.md). Đăng nhập mặc định:
+> `admin@chatboss.ai` / `admin123`.
 
 ## Chạy toàn bộ bằng Docker
 
