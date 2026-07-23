@@ -8,6 +8,7 @@ const nav = [
   { href: '/customers', label: 'Khách hàng' },
   { href: '/rooms', label: 'Phòng trọ' },
   { href: '/appointments', label: 'Lịch hẹn' },
+  { href: '/care-tasks', label: 'Chăm sóc' },
   { href: '/templates', label: 'Mẫu câu AI' },
   { href: '/import', label: 'Nhập phòng (Excel)' },
   { href: '/reports', label: 'Báo cáo' },

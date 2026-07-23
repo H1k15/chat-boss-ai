@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { apiGet, apiUpload, BASE, getToken } from '@/lib/api';
+import { apiGet, apiPost, apiUpload, BASE, getToken } from '@/lib/api';
 
 interface ImportResult {
   batchId: string;
@@ -23,6 +23,29 @@ export default function ImportPage() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [sheetId, setSheetId] = useState('');
+  const [sheetBusy, setSheetBusy] = useState(false);
+
+  async function syncSheet() {
+    if (!sheetId.trim()) return;
+    setSheetBusy(true);
+    setErr('');
+    setResult(null);
+    try {
+      const r = await apiPost<ImportResult>('/sheets/sync', {
+        spreadsheetId: sheetId.trim(),
+      });
+      setResult(r);
+      loadBatches();
+    } catch (e) {
+      setErr(
+        String(e) +
+          ' (cần cấu hình Google service account — xem HUONG-DAN-GOOGLE-SHEETS.md)',
+      );
+    } finally {
+      setSheetBusy(false);
+    }
+  }
 
   function loadBatches() {
     apiGet<Batch[]>('/excel/import-batches')
@@ -120,6 +143,32 @@ export default function ImportPage() {
           )}
         </div>
       )}
+
+      <div className="bg-white border rounded p-4 mb-6">
+        <h3 className="font-semibold mb-1 text-sm">
+          Hoặc đồng bộ từ Google Sheet
+        </h3>
+        <p className="text-xs text-gray-500 mb-2">
+          Dán Spreadsheet ID (đoạn giữa <code>/d/</code> và <code>/edit</code>
+          trong URL). Cần cấu hình service account trước — xem
+          HUONG-DAN-GOOGLE-SHEETS.md.
+        </p>
+        <div className="flex gap-2">
+          <input
+            className="border p-2 rounded flex-1 text-sm"
+            placeholder="1AbC...XyZ"
+            value={sheetId}
+            onChange={(e) => setSheetId(e.target.value)}
+          />
+          <button
+            onClick={syncSheet}
+            disabled={sheetBusy}
+            className="border px-4 py-2 rounded bg-white hover:bg-gray-50 text-sm"
+          >
+            {sheetBusy ? 'Đang đồng bộ...' : 'Đồng bộ'}
+          </button>
+        </div>
+      </div>
 
       <h3 className="font-semibold mb-2">Lịch sử nhập</h3>
       <table className="w-full bg-white border rounded overflow-hidden text-sm">
