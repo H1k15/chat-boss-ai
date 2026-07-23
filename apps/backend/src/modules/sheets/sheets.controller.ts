@@ -21,4 +21,21 @@ export class SheetsController {
       req.user.userId,
     );
   }
+
+  // Đồng bộ sheet "bảng tổng hợp" (tiêu đề không ở hàng 1, không có cột mã
+  // phòng/khu vực/trạng thái riêng). Mặc định tiêu đề ở hàng 2.
+  @Roles(UserRole.ADMIN)
+  @Post('sync-rooms')
+  syncRooms(
+    @Body()
+    body: { spreadsheetId: string; sheetName?: string; headerRow?: number },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.sheets.syncRooms(
+      body.spreadsheetId,
+      body.sheetName,
+      body.headerRow ?? 2,
+      req.user.userId,
+    );
+  }
 }

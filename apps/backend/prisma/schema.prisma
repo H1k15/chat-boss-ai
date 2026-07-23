@@ -224,6 +224,7 @@ model Room {
   videoLinks      String[]   @default([])
   managerName     String?
   note            String?
+  furniture       String? // nội thất nguyên văn (cho AI đọc, không tách cột)
 
   importBatchId String?
   importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
