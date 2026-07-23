@@ -60,6 +60,7 @@ enum RoomStatus {
   AVAILABLE
   DEPOSITED
   RENTED
+  UNAVAILABLE
 }
 
 enum AppointmentStatus {
@@ -204,6 +205,10 @@ model Message {
 model Room {
   id              String     @id @default(cuid())
   roomCode        String     @unique
+  code            String?    @unique // mã ngắn tự cấp (R001, R002...), giữ nguyên qua các lần đồng bộ
+  roomNumber      String? // số phòng nguyên văn từ sheet (VD "501")
+  stayDuration    String? // thời gian ở (nguyên văn cột "Thời gian ở")
+  salePrice       Int? // giá sale/khuyến mãi (VND), null nếu không có
   area            String
   address         String?
   price           Int // VND

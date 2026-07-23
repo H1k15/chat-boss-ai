@@ -5,6 +5,10 @@ import { apiGet, apiPost } from '@/lib/api';
 interface Room {
   id: string;
   roomCode: string;
+  code?: string | null;
+  roomNumber?: string | null;
+  stayDuration?: string | null;
+  salePrice?: number | null;
   area: string;
   price: number;
   status: string;
@@ -86,8 +90,11 @@ export default function RoomsPage() {
         <thead className="bg-gray-100 text-left">
           <tr>
             <th className="p-2">Mã</th>
+            <th className="p-2">Số phòng</th>
             <th className="p-2">Khu vực</th>
             <th className="p-2">Giá</th>
+            <th className="p-2">Giá sale</th>
+            <th className="p-2">Thời gian ở</th>
             <th className="p-2">Loại</th>
             <th className="p-2">Trạng thái</th>
           </tr>
@@ -95,11 +102,23 @@ export default function RoomsPage() {
         <tbody>
           {rooms.map((r) => (
             <tr key={r.id} className="border-t">
-              <td className="p-2 font-medium">{r.roomCode}</td>
+              <td className="p-2 font-medium">{r.code || r.roomCode}</td>
+              <td className="p-2">{r.roomNumber || '-'}</td>
               <td className="p-2">{r.area}</td>
               <td className="p-2">{(r.price / 1_000_000).toFixed(1)}tr</td>
+              <td className="p-2 text-orange-600">
+                {r.salePrice ? `${(r.salePrice / 1_000_000).toFixed(1)}tr` : ''}
+              </td>
+              <td className="p-2">{r.stayDuration || '-'}</td>
               <td className="p-2">{r.roomType || '-'}</td>
-              <td className="p-2">{r.status}</td>
+              <td
+                className={
+                  'p-2 ' +
+                  (r.status === 'AVAILABLE' ? 'text-green-700' : 'text-gray-400')
+                }
+              >
+                {r.status}
+              </td>
             </tr>
           ))}
         </tbody>

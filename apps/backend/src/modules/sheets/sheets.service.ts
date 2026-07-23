@@ -1,6 +1,9 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { existsSync } from 'fs';
@@ -26,15 +29,75 @@ function parseMoney(s: unknown): number {
   return d ? parseInt(d, 10) : 0;
 }
 
+// Dò loại phòng từ text tự do (cột "Loại phòng" nếu có, hoặc trong nội thất /
+// ghi chú). roomType là chữ tự do nên chỉ cần khớp từ khoá phổ biến. Xếp cái
+// cụ thể trước (chung cư mini trước "gác"...). Thêm loại mới thì bổ sung dòng.
+const ROOM_TYPE_KEYWORDS: [RegExp, string][] = [
+  [/studio/, 'studio'],
+  [/chung cu mini|ccmn/, 'chung cư mini'],
+  [/nguyen can|nguyen cang|cho thue nguyen/, 'nguyên căn'],
+  [/duplex/, 'duplex'],
+  [/gac xep|gac lung|co gac|gac/, 'gác'],
+  [/khep kin/, 'khép kín'],
+  [/ve sinh chung|wc chung|nha ve sinh chung|vs chung/, 'vệ sinh chung'],
+  [/o ghep|phong ghep/, 'ở ghép'],
+];
+function detectRoomType(...texts: (string | null | undefined)[]): string | null {
+  const hay = deaccentLower(texts.filter(Boolean).join(' '));
+  for (const [re, type] of ROOM_TYPE_KEYWORDS) {
+    if (re.test(hay)) return type;
+  }
+  return null;
+}
+
 // Đồng bộ phòng từ Google Sheet. Đọc dải ô -> dòng object -> ĐƯA VÀO CHUNG
 // pipeline chuẩn hoá/upsert của ExcelService (importRows), nên logic phân tích
 // và ràng buộc dữ liệu giống hệt import Excel.
 @Injectable()
-export class SheetsService {
+export class SheetsService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(SheetsService.name);
+  private autoSyncTimer?: ReturnType<typeof setInterval>;
+
   constructor(
     private readonly excel: ExcelService,
     private readonly prisma: PrismaService,
   ) {}
+
+  // Tự động đồng bộ Google Sheet theo chu kỳ (mặc định 30 phút). Đặt
+  // SHEET_SYNC_INTERVAL_MINUTES=0 trong .env để tắt. Dùng cấu hình đã lưu; chưa
+  // cấu hình thì bỏ qua. Lỗi mạng/sheet chỉ log, KHÔNG làm sập tiến trình.
+  onModuleInit(): void {
+    const minutes = parseInt(
+      process.env.SHEET_SYNC_INTERVAL_MINUTES || '30',
+      10,
+    );
+    if (!minutes || minutes <= 0) {
+      this.logger.log('Tự động đồng bộ sheet: TẮT');
+      return;
+    }
+    this.autoSyncTimer = setInterval(
+      () => void this.autoSync(),
+      minutes * 60_000,
+    );
+    this.logger.log(`Tự động đồng bộ sheet mỗi ${minutes} phút`);
+  }
+
+  onModuleDestroy(): void {
+    if (this.autoSyncTimer) clearInterval(this.autoSyncTimer);
+  }
+
+  private async autoSync(): Promise<void> {
+    try {
+      const cfg = await this.getConfig();
+      if (!cfg) return; // chưa cấu hình sheet -> chưa có gì để đồng bộ
+      const r = await this.syncSaved();
+      this.logger.log(
+        `Tự đồng bộ: +${r.created} thêm, ~${r.updated} cập nhật, -${r.deleted} xoá`,
+      );
+    } catch (e) {
+      this.logger.warn(`Tự đồng bộ lỗi (bỏ qua lần này): ${String(e)}`);
+    }
+  }
 
   /**
    * Đồng bộ phòng từ sheet quản lý "kiểu bảng tổng hợp" (như Legacy Home):
@@ -120,6 +183,9 @@ export class SheetsService {
     const iSvc = col('gia dich vu');
     const iTerm = col('dong tien');
     const iNote = col('ghi chu');
+    const iStay = col('thoi gian'); // "Thời gian ở"
+    const iSale = col('gia sale') >= 0 ? col('gia sale') : col('sale'); // "Giá sale"
+    const iType = col('loai phong'); // "Loại phòng" (studio, gác, phòng thường...)
     if (iAddr < 0 || iRoom < 0 || iPrice < 0) {
       throw new BadRequestException(
         'Thiếu cột bắt buộc: cần có "Địa chỉ", "Phòng", "Giá cho thuê" trong ' +
@@ -136,9 +202,13 @@ export class SheetsService {
     let skipped = 0;
     const parsed: {
       roomCode: string;
+      roomNumber: string;
       area: string;
       address: string;
       price: number;
+      salePrice: number | null;
+      stayDuration: string | null;
+      roomType: string | null;
       status: RoomStatus;
       furniture: string | null;
       note: string | null;
@@ -171,13 +241,31 @@ export class SheetsService {
         .map((x) => String(x ?? '').trim())
         .filter(Boolean)
         .join(' | ');
+      const stayDuration =
+        iStay >= 0 ? String(r[iStay] ?? '').trim() || null : null;
+      // "Đã cho thuê / hết phòng" có thể ghi ở cột Thời gian ở HOẶC ghi chú
+      // -> UNAVAILABLE, AI sẽ không tư vấn phòng này (room-matcher chỉ lấy
+      // AVAILABLE).
+      const rentedOut = /da (cho )?thue|het phong|ngung cho thue|khong cho thue/.test(
+        deaccentLower(`${stayDuration ?? ''} ${note}`),
+      );
+      const salePrice = iSale >= 0 ? parseMoney(r[iSale]) : 0;
+      const furniture = iFurn >= 0 ? String(r[iFurn] ?? '').trim() || null : null;
+      // Loại phòng: ưu tiên cột "Loại phòng"; không có thì DÒ trong nội thất +
+      // ghi chú (VD "Gác xép mới sạch" -> gác, "phòng studio" -> studio).
+      const explicitType = iType >= 0 ? String(r[iType] ?? '').trim() : '';
+      const roomType = explicitType || detectRoomType(furniture, note);
       parsed.push({
         roomCode,
+        roomNumber: room,
         area: addr, // khớp chuỗi con -> khách hỏi tên phường vẫn ra
         address: addr,
         price,
-        status: RoomStatus.AVAILABLE,
-        furniture: iFurn >= 0 ? String(r[iFurn] ?? '').trim() || null : null,
+        salePrice: salePrice || null, // bỏ trống nếu sheet không có giá sale
+        stayDuration,
+        roomType: roomType || null,
+        status: rentedOut ? RoomStatus.UNAVAILABLE : RoomStatus.AVAILABLE,
+        furniture,
         note: note || null,
         importBatchId: batch.id,
       });
@@ -223,6 +311,29 @@ export class SheetsService {
           await this.prisma.room.deleteMany({ where: { id: { in: ids } } })
         ).count;
       }
+    }
+
+    // Cấp mã ngắn (R001, R002...) cho phòng chưa có. Mã đã cấp thì GIỮ NGUYÊN
+    // qua các lần đồng bộ — làm khoá tra cứu ngắn gọn thay cho roomCode dài.
+    const withCode = await this.prisma.room.findMany({
+      where: { NOT: { code: null } },
+      select: { code: true },
+    });
+    let nextNo =
+      withCode.reduce(
+        (m, r) => Math.max(m, parseInt((r.code ?? '').replace(/\D/g, '') || '0', 10)),
+        0,
+      ) + 1;
+    const noCode = await this.prisma.room.findMany({
+      where: { code: null },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    for (const r of noCode) {
+      await this.prisma.room.update({
+        where: { id: r.id },
+        data: { code: `R${String(nextNo++).padStart(3, '0')}` },
+      });
     }
 
     await this.prisma.importBatch.update({
