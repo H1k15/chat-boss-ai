@@ -23,7 +23,7 @@ docker compose up -d postgres redis minio
 pnpm --filter @cba/backend prisma migrate dev
 pnpm --filter @cba/backend seed
 pnpm --filter @cba/backend seed:templates   # khung mẫu câu AI
-pnpm dev                        # backend :3001 + dashboard :3000
+pnpm dev                        # backend :3001 + dashboard :3005
 pnpm --filter @cba/extension build   # rồi load apps/extension/dist vào Chrome
 ```
 

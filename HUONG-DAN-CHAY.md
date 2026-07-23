@@ -129,7 +129,8 @@ pnpm dev
 ```
 
 - Backend: http://localhost:3001/api/v1
-- Dashboard: http://localhost:3000
+- Dashboard: http://localhost:3005 (cổng dev đặt 3005 để tránh đụng cổng 3000
+  hay bị dịch vụ khác chiếm; đổi trong `apps/dashboard/package.json` nếu muốn)
 
 ### Cách 2 — Chạy tất cả bằng Docker
 
@@ -167,7 +168,8 @@ Rồi mở dashboard trên trình duyệt, đăng nhập `admin@chatboss.ai` / `
 
 ## 7. Dùng dashboard
 
-Mở http://localhost:3000 (hoặc :3002 nếu đổi cổng), đăng nhập. Các màn chính:
+Mở dashboard (dev: http://localhost:3005 — Docker: http://localhost:3000), đăng
+nhập. Các màn chính:
 
 | Màn | Việc |
 |---|---|
