@@ -91,6 +91,7 @@ export class SheetsService {
     created: number;
     updated: number;
     skipped: number;
+    deleted: number;
     errors: { room: string; message: string }[];
   }> {
     await this.saveConfig({ spreadsheetId, sheetName, headerRow });
@@ -198,12 +199,38 @@ export class SheetsService {
       exSet.has(data.roomCode) ? updated++ : created++;
     }
 
+    // Xoá phòng đến TỪ GOOGLE SHEET nhưng không còn trong sheet nữa (đã cho
+    // thuê / gỡ khỏi bảng). CHỐT AN TOÀN: chỉ xoá khi thực sự đọc được phòng
+    // (seen > 0) — sheet đọc ra rỗng thì KHÔNG xoá gì, tránh xoá sạch do lỗi.
+    // Chỉ đụng phòng nguồn google_sheet, không đụng phòng nhập tay/Excel.
+    let deleted = 0;
+    if (seen.size > 0) {
+      const stale = await this.prisma.room.findMany({
+        where: {
+          roomCode: { notIn: Array.from(seen) },
+          importBatch: { source: 'google_sheet' },
+        },
+        select: { id: true },
+      });
+      if (stale.length) {
+        const ids = stale.map((r) => r.id);
+        // Gỡ liên kết lịch hẹn trước để không vướng khoá ngoại khi xoá phòng.
+        await this.prisma.appointment.updateMany({
+          where: { roomId: { in: ids } },
+          data: { roomId: null },
+        });
+        deleted = (
+          await this.prisma.room.deleteMany({ where: { id: { in: ids } } })
+        ).count;
+      }
+    }
+
     await this.prisma.importBatch.update({
       where: { id: batch.id },
       data: { created, updated, errors: errors as unknown as object },
     });
 
-    return { batchId: batch.id, created, updated, skipped, errors };
+    return { batchId: batch.id, created, updated, skipped, deleted, errors };
   }
 
   async sync(

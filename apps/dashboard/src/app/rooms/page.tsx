@@ -40,11 +40,16 @@ export default function RoomsPage() {
     setSyncing(true);
     setMsg('');
     try {
-      const r = await apiPost<{ created: number; updated: number; skipped: number }>(
-        '/sheets/sync-saved',
-        {},
+      const r = await apiPost<{
+        created: number;
+        updated: number;
+        deleted: number;
+      }>('/sheets/sync-saved', {});
+      setMsg(
+        `Đã đồng bộ: ${r.created} thêm, ${r.updated} cập nhật` +
+          (r.deleted ? `, ${r.deleted} xoá (không còn trong sheet)` : '') +
+          '.',
       );
-      setMsg(`Đã đồng bộ: ${r.created} thêm, ${r.updated} cập nhật.`);
       load();
     } catch (e) {
       setMsg('Lỗi đồng bộ: ' + String(e));
