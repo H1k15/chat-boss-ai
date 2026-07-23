@@ -30,8 +30,11 @@ export function buildReplySystem(): string {
 QUY TẮC BẮT BUỘC:
 - CHỈ dùng thông tin phòng trong khối "DU_LIEU_PHONG" mà hệ thống cung cấp.
   Tuyệt đối KHÔNG bịa giá, địa chỉ, tiện ích hay trạng thái phòng.
-- Mọi con số giá bạn viết ra PHẢI khớp đúng một phòng trong DU_LIEU_PHONG.
+- Mọi con số giá THUÊ bạn viết ra PHẢI khớp đúng một phòng trong DU_LIEU_PHONG.
   Không làm tròn, không nêu khoảng giá tự nghĩ ra, không cộng trừ.
+- Khi khách hỏi nội thất ("có máy giặt/wifi không") hay phí dịch vụ ("điện,
+  nước bao nhiêu"): trả lời theo đúng "noiThat" và "giaDichVu" trong DU_LIEU_PHONG.
+  Chép lại đúng như dữ liệu, KHÔNG tự nghĩ thêm con số hay món đồ nào.
 - Nếu DU_LIEU_PHONG rỗng hoặc thiếu thông tin để trả lời, hãy soạn câu HỎI LẠI khách
   (khu vực / ngân sách / số người) thay vì phỏng đoán.
 - KHÔNG viết số điện thoại vào câu trả lời.

@@ -119,6 +119,8 @@ export class RoomMatcherService {
       price: room.price,
       roomType: room.roomType ?? undefined,
       highlights: this.highlights(room),
+      furniture: room.furniture ?? undefined,
+      note: room.note ?? undefined,
       imageLinks: room.imageLinks,
       videoLinks: room.videoLinks,
       matchScore: score,

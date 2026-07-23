@@ -10,13 +10,15 @@ import { LLM_PROVIDER } from './llm/llm-provider.interface';
 import { ClaudeProvider } from './llm/claude.provider';
 import { OpenAiProvider } from './llm/openai.provider';
 
-// Chọn provider theo biến môi trường AI_PROVIDER.
+// Chọn provider theo biến môi trường AI_PROVIDER. Dùng useFactory (đọc env
+// LÚC KHỞI TẠO DI) thay vì đọc ở top-level: top-level chạy khi import module,
+// lúc đó ConfigModule chưa nạp .env nên AI_PROVIDER còn undefined -> luôn rơi
+// về Claude. Chỉ Docker (env set sẵn trước node) mới đúng; dev/node thì sai.
 const llmProvider = {
   provide: LLM_PROVIDER,
-  useClass:
-    (process.env.AI_PROVIDER || 'claude') === 'openai'
-      ? OpenAiProvider
-      : ClaudeProvider,
+  useFactory: (claude: ClaudeProvider, openai: OpenAiProvider) =>
+    (process.env.AI_PROVIDER || 'claude') === 'openai' ? openai : claude,
+  inject: [ClaudeProvider, OpenAiProvider],
 };
 
 @Module({

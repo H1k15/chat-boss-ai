@@ -98,6 +98,15 @@ export class SafetyGuardService {
       allowed.add(Math.round(r.price / 100_000) * 100_000);
       allowed.add(Math.floor(r.price / 1_000_000) * 1_000_000);
       allowed.add(Math.ceil(r.price / 1_000_000) * 1_000_000);
+      // Giá dịch vụ (điện/nước/mạng/máy giặt...) NẰM TRONG dữ liệu thật của
+      // phòng -> AI được phép nhắc lại. extractAmounts chỉ nhận số DẠNG TIỀN
+      // ("4k", "60k"), bỏ qua "1 điều hòa"/"2 người", nên không mở đường bịa
+      // giá thuê (giá thuê tiền triệu, giá dịch vụ tiền nghìn — khác bậc).
+      for (const a of this.extractAmounts(
+        `${r.furniture ?? ''} ${r.note ?? ''}`,
+      )) {
+        allowed.add(a);
+      }
     }
     return allowed;
   }

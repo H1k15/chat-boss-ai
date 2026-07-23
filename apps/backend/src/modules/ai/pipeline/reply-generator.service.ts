@@ -108,6 +108,8 @@ export class ReplyGeneratorService {
       price: room.price,
       roomType: room.roomType,
       highlights: room.highlights,
+      noiThat: room.furniture, // để AI trả lời "phòng có gì" theo dữ liệu thật
+      giaDichVu: room.note, // điện/nước/mạng... để trả lời "phí dịch vụ bao nhiêu"
     };
   }
 }

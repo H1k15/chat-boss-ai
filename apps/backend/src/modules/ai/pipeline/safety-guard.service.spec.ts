@@ -130,4 +130,34 @@ describe('SafetyGuardService', () => {
       expect(r.reasons).toHaveLength(1);
     });
   });
+
+  describe('cho phép giá dịch vụ trong dữ liệu phòng', () => {
+    const withServices = room({
+      note: 'Điện 4k/số, Nước 100k/người, Mạng 100k/phòng, Máy giặt 60k/ng',
+      furniture: '1 Điều hòa, 1 Nóng Lạnh, 1 Giường, 2 Máy giặt chung, 1 wifi',
+    });
+
+    it('cho qua khi nhắc giá dịch vụ có thật trong dữ liệu phòng', () => {
+      const r = guard.check(
+        ['Dạ điện 4k/số, nước 100k/người, máy giặt 60k anh nhé'],
+        [withServices],
+      );
+      expect(r.blocked).toBe(false);
+      expect(r.safeSuggestions).toHaveLength(1);
+    });
+
+    it('vẫn chặn giá THUÊ bịa dù có cho phép giá dịch vụ', () => {
+      // 5 triệu không phải giá thuê (3.8tr) cũng không phải giá dịch vụ nào.
+      const r = guard.check(['Dạ phòng này 5 triệu ạ'], [withServices]);
+      expect(r.blocked).toBe(true);
+    });
+
+    it('không nhầm số đếm nội thất thành tiền (1 điều hòa, 2 máy giặt)', () => {
+      const r = guard.check(
+        ['Dạ phòng có 1 điều hòa, 2 máy giặt chung và wifi ạ'],
+        [withServices],
+      );
+      expect(r.blocked).toBe(false);
+    });
+  });
 });

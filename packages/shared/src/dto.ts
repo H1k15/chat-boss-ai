@@ -37,6 +37,8 @@ export interface MatchedRoom {
   price: number; // VND
   roomType?: string;
   highlights: string[]; // ["có gác", "WC riêng", "giờ tự do"]
+  furniture?: string; // nội thất nguyên văn — AI đọc để trả lời "có máy giặt không"
+  note?: string; // giá dịch vụ + điều khoản nguyên văn (điện/nước/mạng...)
   imageLinks?: string[];
   videoLinks?: string[];
   matchScore: number; // 0..1
