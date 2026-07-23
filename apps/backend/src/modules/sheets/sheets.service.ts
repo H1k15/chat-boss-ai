@@ -6,7 +6,7 @@ import {
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { google } from 'googleapis';
-import { RoomStatus } from '@prisma/client';
+import { Prisma, RoomStatus } from '@prisma/client';
 import { ExcelService, ImportResult } from '../excel/excel.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -44,6 +44,43 @@ export class SheetsService {
    * - Giá = cột "Giá cho thuê"; Trạng thái = còn (cả sheet là phòng trống)
    * - Nội thất giữ nguyên văn; giá dịch vụ + điều khoản gộp vào note
    */
+  // Lưu cấu hình sheet gần nhất để nút "Đồng bộ" ở các màn khác dùng lại
+  // (không bắt nhập lại ID/tab mỗi lần).
+  private async saveConfig(cfg: {
+    spreadsheetId: string;
+    sheetName?: string;
+    headerRow: number;
+  }): Promise<void> {
+    await this.prisma.appSetting.upsert({
+      where: { key: 'sheet_rooms' },
+      update: { value: cfg as unknown as Prisma.InputJsonObject },
+      create: { key: 'sheet_rooms', value: cfg as unknown as Prisma.InputJsonObject },
+    });
+  }
+
+  /** Cấu hình sheet đã lưu (null nếu chưa từng đồng bộ). */
+  async getConfig(): Promise<{
+    spreadsheetId: string;
+    sheetName?: string;
+    headerRow: number;
+  } | null> {
+    const row = await this.prisma.appSetting.findUnique({
+      where: { key: 'sheet_rooms' },
+    });
+    return (row?.value as { spreadsheetId: string; sheetName?: string; headerRow: number } | null) ?? null;
+  }
+
+  /** Đồng bộ dùng cấu hình đã lưu — cho nút một-cú-bấm ở màn Phòng trọ. */
+  async syncSaved(userId?: string) {
+    const cfg = await this.getConfig();
+    if (!cfg) {
+      throw new BadRequestException(
+        'Chưa cấu hình Google Sheet. Vào màn Nhập phòng đồng bộ một lần để lưu.',
+      );
+    }
+    return this.syncRooms(cfg.spreadsheetId, cfg.sheetName, cfg.headerRow, userId);
+  }
+
   async syncRooms(
     spreadsheetId: string,
     sheetName: string | undefined,
@@ -56,6 +93,7 @@ export class SheetsService {
     skipped: number;
     errors: { room: string; message: string }[];
   }> {
+    await this.saveConfig({ spreadsheetId, sheetName, headerRow });
     const auth = this.buildAuth();
     const sheets = google.sheets({ version: 'v4', auth });
 
