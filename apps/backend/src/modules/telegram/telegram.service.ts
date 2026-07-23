@@ -113,11 +113,13 @@ export class TelegramService {
         data: { success: true, sentAt: new Date() },
       });
     } catch (e) {
+      // Gửi Telegram thất bại KHÔNG được làm hỏng việc chính (lưu lead, tạo lịch
+      // hẹn). Ghi log + đánh dấu thất bại trong DB, nhưng không ném lỗi lên.
       await this.prisma.telegramNotification.update({
         where: { id: record.id },
         data: { success: false, error: String(e) },
       });
-      throw e;
+      this.logger.warn(`Gửi Telegram thất bại (đã bỏ qua): ${e}`);
     }
   }
 
