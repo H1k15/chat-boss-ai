@@ -14,3 +14,6 @@ apps/extension/dist/
 apps/backend/prisma/*.db
 .DS_Store
 *.tsbuildinfo
+
+# Dữ liệu phòng thật (business data) — KHÔNG commit
+*.xlsx
