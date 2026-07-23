@@ -27,9 +27,10 @@ pnpm dev                        # backend :3001 + dashboard :3005
 pnpm --filter @cba/extension build   # rồi load apps/extension/dist vào Chrome
 ```
 
-> 📖 **Hướng dẫn chạy chi tiết** (cấu hình AI, cách chạy Docker, lỗi thường
-> gặp): [`HUONG-DAN-CHAY.md`](HUONG-DAN-CHAY.md). Đăng nhập mặc định:
-> `admin@chatboss.ai` / `admin123`.
+> 📖 **Hướng dẫn chạy chi tiết**: [`HUONG-DAN-CHAY.md`](HUONG-DAN-CHAY.md) ·
+> **Test từng chức năng**: [`HUONG-DAN-TEST.md`](HUONG-DAN-TEST.md) ·
+> **Google Sheets**: [`HUONG-DAN-GOOGLE-SHEETS.md`](HUONG-DAN-GOOGLE-SHEETS.md).
+> Đăng nhập mặc định: `admin@chatboss.ai` / `admin123`.
 
 ## Chạy toàn bộ bằng Docker
 
