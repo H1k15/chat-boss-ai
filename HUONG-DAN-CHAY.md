@@ -222,7 +222,7 @@ docker compose --profile full down                     # dừng tất cả
 | `Bind for 0.0.0.0:3000 failed: port is already allocated` | Cổng bị chiếm. Đổi `DASHBOARD_PORT`/`BACKEND_PORT`. |
 | Backend lỗi `Environment variable not found: DATABASE_URL` | Chạy lệnh Prisma sai chỗ. Dùng `pnpm --filter @cba/backend prisma ...` (script đã bọc dotenv trỏ về `.env` gốc). |
 | AI trả lỗi 503 / "credit balance too low" | Dùng Claude nhưng chưa nạp tiền, hoặc key sai. Xem mục 4B. |
-| `/sheets/sync` báo 503 | Chưa cấu hình Google service account. Đây là đúng thiết kế — cần setup Google Console + chia sẻ Sheet. |
+| `/sheets/sync` báo 503 | Chưa cấu hình Google service account. Xem [`HUONG-DAN-GOOGLE-SHEETS.md`](HUONG-DAN-GOOGLE-SHEETS.md). |
 | Model local rất chậm | Máy không có GPU. Thử model nhỏ hơn (`qwen2.5:1.5b`) hoặc chuyển sang Claude. |
 | `pnpm lint` cần ESLint | Đã cài rồi; nếu lỗi thì `pnpm install` lại. |
 
