@@ -24,6 +24,8 @@ export default function ImportPage() {
   const [busy, setBusy] = useState(false);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [sheetId, setSheetId] = useState('');
+  const [sheetName, setSheetName] = useState('');
+  const [headerRow, setHeaderRow] = useState('2');
   const [sheetBusy, setSheetBusy] = useState(false);
 
   async function syncSheet() {
@@ -32,10 +34,26 @@ export default function ImportPage() {
     setErr('');
     setResult(null);
     try {
-      const r = await apiPost<ImportResult>('/sheets/sync', {
+      // Đọc sheet "bảng tổng hợp" (mã phòng = địa chỉ + phòng, tiêu đề hàng 2).
+      const r = await apiPost<{
+        batchId: string;
+        created: number;
+        updated: number;
+        skipped: number;
+        errors: { room: string; message: string }[];
+      }>('/sheets/sync-rooms', {
         spreadsheetId: sheetId.trim(),
+        sheetName: sheetName.trim() || undefined,
+        headerRow: parseInt(headerRow) || 2,
       });
-      setResult(r);
+      // Đưa về dạng hiển thị chung với import Excel.
+      setResult({
+        batchId: r.batchId,
+        created: r.created,
+        updated: r.updated,
+        errors: r.errors.map((e) => ({ row: -1, roomCode: e.room, message: e.message })),
+        missingColumns: [],
+      });
       loadBatches();
     } catch (e) {
       setErr(
@@ -146,28 +164,46 @@ export default function ImportPage() {
 
       <div className="bg-white border rounded p-4 mb-6">
         <h3 className="font-semibold mb-1 text-sm">
-          Hoặc đồng bộ từ Google Sheet
+          Hoặc đồng bộ trực tiếp từ Google Sheet
         </h3>
         <p className="text-xs text-gray-500 mb-2">
           Dán Spreadsheet ID (đoạn giữa <code>/d/</code> và <code>/edit</code>
-          trong URL). Cần cấu hình service account trước — xem
+          trong URL). Cần chia sẻ Sheet cho service account trước — xem
           HUONG-DAN-GOOGLE-SHEETS.md.
         </p>
+        <input
+          className="border p-2 rounded w-full text-sm mb-2"
+          placeholder="Spreadsheet ID: 1AbC...XyZ"
+          value={sheetId}
+          onChange={(e) => setSheetId(e.target.value)}
+        />
         <div className="flex gap-2">
           <input
             className="border p-2 rounded flex-1 text-sm"
-            placeholder="1AbC...XyZ"
-            value={sheetId}
-            onChange={(e) => setSheetId(e.target.value)}
+            placeholder="Tên tab (bỏ trống = tab đầu tiên)"
+            value={sheetName}
+            onChange={(e) => setSheetName(e.target.value)}
+          />
+          <input
+            className="border p-2 rounded w-32 text-sm"
+            type="number"
+            min={1}
+            placeholder="Hàng tiêu đề"
+            title="Hàng chứa tên cột (VD 2 nếu hàng 1 là tên bảng)"
+            value={headerRow}
+            onChange={(e) => setHeaderRow(e.target.value)}
           />
           <button
             onClick={syncSheet}
             disabled={sheetBusy}
-            className="border px-4 py-2 rounded bg-white hover:bg-gray-50 text-sm"
+            className="border px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm"
           >
             {sheetBusy ? 'Đang đồng bộ...' : 'Đồng bộ'}
           </button>
         </div>
+        <p className="text-xs text-gray-400 mt-1">
+          Hàng tiêu đề = hàng chứa tên cột. Để mặc định 2 nếu hàng 1 là tên bảng.
+        </p>
       </div>
 
       <h3 className="font-semibold mb-2">Lịch sử nhập</h3>
