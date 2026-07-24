@@ -5,6 +5,7 @@
   "description": "Hệ thống AI hỗ trợ tư vấn khách thuê nhà trọ qua Facebook cá nhân, Excel và Telegram",
   "packageManager": "pnpm@9.0.0",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
