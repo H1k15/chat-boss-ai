@@ -21,12 +21,22 @@ export class OpenAiProvider implements LlmProvider {
     maxRetries: 3,
   });
   private readonly model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  // Mức suy luận cho model reasoning (VD gpt-oss trên Groq): low|medium|high.
+  // Chỉ gửi khi có đặt — model thường (Ollama qwen2.5) không hiểu param này.
+  private readonly reasoningEffort = process.env.OPENAI_REASONING_EFFORT as
+    | 'low'
+    | 'medium'
+    | 'high'
+    | undefined;
 
   async completeJson<T = unknown>(req: LlmJsonRequest): Promise<T> {
     const res = await this.client.chat.completions.create({
       model: this.model,
       max_tokens: req.maxTokens ?? 2048,
       messages: this.toMessages(req.system, req.messages),
+      ...(this.reasoningEffort
+        ? { reasoning_effort: this.reasoningEffort }
+        : {}),
       response_format: {
         type: 'json_schema',
         json_schema: {
@@ -63,6 +73,9 @@ export class OpenAiProvider implements LlmProvider {
       model: this.model,
       max_tokens: req.maxTokens ?? 2048,
       messages: this.toMessages(req.system, req.messages),
+      ...(this.reasoningEffort
+        ? { reasoning_effort: this.reasoningEffort }
+        : {}),
     });
     return res.choices[0]?.message?.content ?? '';
   }
