@@ -75,11 +75,20 @@ export class AiService {
       await this.updateCustomer(customer, extracted);
     }
 
+    // Đính link ảnh/video/vị trí THẬT (từ map room_media) vào cuối gợi ý khi
+    // khách hỏi — CODE ghép link, model KHÔNG tự gõ URL (chống bịa link). Chạy
+    // sau SafetyGuard vì URL không phải giá/SĐT nên không ảnh hưởng kiểm tra.
+    const finalSuggestions = await this.attachMediaLinks(
+      intent,
+      matchedRooms,
+      safe.safeSuggestions,
+    );
+
     // Ghi lại lần gợi ý này để sau ghép với câu nhân viên thực sự gửi.
     const suggestionLogId = await this.logAiSuggest(req, userId, {
       intent,
       extracted,
-      suggestions: safe.safeSuggestions,
+      suggestions: finalSuggestions,
       matchedRoomCodes: matchedRooms.map((r) => r.roomCode),
     });
 
@@ -87,7 +96,7 @@ export class AiService {
       intent,
       extracted,
       matchedRooms,
-      suggestions: safe.safeSuggestions,
+      suggestions: finalSuggestions,
       nextAction,
       customerStageHint: this.stageHint(intent, extracted),
       safety: { blocked: safe.blocked, reasons: safe.reasons },
@@ -168,6 +177,74 @@ export class AiService {
       this.logger.warn(`Không ghi được AI_SEND: ${e}`);
       return { ok: false };
     }
+  }
+
+  /**
+   * Đính link ảnh/video/vị trí THẬT vào cuối mỗi câu gợi ý, chỉ khi khách hỏi.
+   * - ASK_MEDIA: ưu tiên link THỰC TẾ -> nếu không có thì DEMO -> nếu không có
+   *   cả hai thì báo khách chưa có ảnh/video + xin liên hệ (MEDIA_UNAVAILABLE_MSG).
+   * - ASK_ADDRESS / WANT_VIEWING: đính link vị trí (Google Maps) nếu có.
+   * Link lấy từ map room_media (đọc qua AppSetting, không phụ thuộc SheetsModule
+   * để tránh phụ thuộc vòng). Model không bao giờ tự sinh URL -> không bịa link.
+   */
+  private async attachMediaLinks(
+    intent: CustomerIntent,
+    matchedRooms: MatchedRoom[],
+    suggestions: string[],
+  ): Promise<string[]> {
+    const isMedia = intent === CustomerIntent.ASK_MEDIA;
+    const isLoc =
+      intent === CustomerIntent.ASK_ADDRESS ||
+      intent === CustomerIntent.WANT_VIEWING;
+    if ((!isMedia && !isLoc) || !matchedRooms.length) return suggestions;
+
+    type MediaMap = Record<
+      string,
+      { demo?: string; real?: string; location?: string }
+    >;
+    let map: MediaMap;
+    try {
+      const row = await this.prisma.appSetting.findUnique({
+        where: { key: 'room_media' },
+      });
+      map = (row?.value as MediaMap | null) ?? {};
+    } catch {
+      return suggestions; // không đọc được -> trả nguyên, không chặn gợi ý
+    }
+
+    let block = '';
+    if (isMedia) {
+      // Ưu tiên phòng khớp ĐẦU TIÊN có ảnh/video (thực tế trước, demo sau).
+      for (const room of matchedRooms) {
+        const m = map[room.roomCode];
+        if (m?.real) {
+          block = `🎥 Ảnh/video thực tế: ${m.real}`;
+          break;
+        }
+        if (m?.demo) {
+          block = `📷 Ảnh/video (mẫu): ${m.demo}`;
+          break;
+        }
+      }
+      // Không phòng nào có ảnh/video -> báo khách chưa có + xin liên hệ.
+      if (!block) {
+        block =
+          process.env.MEDIA_UNAVAILABLE_MSG ||
+          'Phòng này bên em hiện chưa có sẵn ảnh/video ạ. Anh/chị để lại ' +
+            'SĐT/Zalo, em gửi ngay khi cập nhật nhé!';
+      }
+    } else {
+      // Vị trí: đính nếu có; không có thì thôi (không cần báo gì thêm).
+      for (const room of matchedRooms) {
+        const m = map[room.roomCode];
+        if (m?.location) {
+          block = `📍 Vị trí: ${m.location}`;
+          break;
+        }
+      }
+    }
+    if (!block) return suggestions;
+    return suggestions.map((s) => `${s}\n${block}`);
   }
 
   /** Lấy tin nhắn cuối cùng của khách trong hội thoại (để lưu kèm log). */

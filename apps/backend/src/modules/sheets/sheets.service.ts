@@ -10,7 +10,7 @@ import {
 import { existsSync } from 'fs';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { resolve } from 'path';
-import { google } from 'googleapis';
+import { google, sheets_v4 } from 'googleapis';
 import { Prisma, RoomStatus } from '@prisma/client';
 import { ExcelService, ImportResult } from '../excel/excel.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -34,6 +34,19 @@ function deaccentLower(s: string): string {
 function parseMoney(s: unknown): number {
   const d = String(s ?? '').replace(/[^\d]/g, '');
   return d ? parseInt(d, 10) : 0;
+}
+
+// Lấy URL từ 1 ô: ưu tiên link chèn kiểu Ctrl+K (hyperlink) -> công thức
+// =HYPERLINK("url",...) -> URL viết thẳng trong text. Không có -> null.
+function cellUrl(cell?: sheets_v4.Schema$CellData): string | null {
+  if (!cell) return null;
+  if (cell.hyperlink) return cell.hyperlink;
+  const f = cell.userEnteredValue?.formulaValue;
+  const fm = f && f.match(/https?:\/\/[^"'\s)]+/);
+  if (fm) return fm[0];
+  const s = cell.userEnteredValue?.stringValue || cell.formattedValue || '';
+  const sm = s.match(/https?:\/\/[^\s]+/);
+  return sm ? sm[0] : null;
 }
 
 // Dò loại phòng từ text tự do (cột "Loại phòng" nếu có, hoặc trong nội thất /
@@ -336,6 +349,92 @@ export class SheetsService implements OnModuleInit, OnModuleDestroy {
     return (row?.value as { spreadsheetId: string; sheetName?: string; headerRow: number } | null) ?? null;
   }
 
+  // Link ảnh/video/vị trí theo từng phòng (roomCode -> {demo, real, location}).
+  // Lưu trong AppSetting để không phải đổi schema (tránh migrate lúc dev chạy).
+  // Mỗi lần đồng bộ ghi đè toàn bộ theo sheet hiện tại.
+  private async saveMedia(
+    media: Record<string, { demo?: string; real?: string; location?: string }>,
+  ): Promise<void> {
+    await this.prisma.appSetting.upsert({
+      where: { key: 'room_media' },
+      update: { value: media as unknown as Prisma.InputJsonObject },
+      create: {
+        key: 'room_media',
+        value: media as unknown as Prisma.InputJsonObject,
+      },
+    });
+  }
+
+  /** Map link theo phòng, cho dashboard hiển thị + nút gửi khách. */
+  async getMedia(): Promise<
+    Record<string, { demo?: string; real?: string; location?: string }>
+  > {
+    const row = await this.prisma.appSetting.findUnique({
+      where: { key: 'room_media' },
+    });
+    return (
+      (row?.value as Record<
+        string,
+        { demo?: string; real?: string; location?: string }
+      > | null) ?? {}
+    );
+  }
+
+  // Loại phòng do NHÂN VIÊN gán tay (nhãn vàng), lưu theo roomCode trong
+  // AppSetting để KHÔNG bị đồng bộ ghi đè. Không cần đổi schema (tránh migrate).
+  private async getTypeOverrides(): Promise<Record<string, string>> {
+    const row = await this.prisma.appSetting.findUnique({
+      where: { key: 'room_type_overrides' },
+    });
+    return (row?.value as Record<string, string> | null) ?? {};
+  }
+
+  /**
+   * Nhân viên gán/sửa loại cho 1 phòng (tạo nhãn VÀNG). type rỗng = xoá gán
+   * tay, trả phòng về dò tự động ở lần đồng bộ sau. Cập nhật ngay cột hiển thị,
+   * lưu override bền, và ghi vào dataset với source='staff'.
+   */
+  async setRoomType(
+    id: string,
+    type: string | null,
+  ): Promise<{ id: string; roomType: string | null }> {
+    const room = await this.prisma.room.findUnique({
+      where: { id },
+      select: { roomCode: true, furniture: true, note: true },
+    });
+    if (!room) throw new BadRequestException('Không tìm thấy phòng');
+    const t = (type ?? '').trim() || null;
+
+    const overrides = await this.getTypeOverrides();
+    if (t) overrides[room.roomCode] = t;
+    else delete overrides[room.roomCode]; // xoá gán tay -> về tự động
+    await this.prisma.appSetting.upsert({
+      where: { key: 'room_type_overrides' },
+      update: { value: overrides as unknown as Prisma.InputJsonObject },
+      create: {
+        key: 'room_type_overrides',
+        value: overrides as unknown as Prisma.InputJsonObject,
+      },
+    });
+
+    await this.prisma.room.update({
+      where: { id },
+      data: { roomType: t },
+    });
+
+    // Nhãn vàng: chỉ ghi khi có loại + có mô tả để làm đầu vào học.
+    if (t && (room.furniture || room.note)) {
+      await this.logRoomTypeDataset([
+        {
+          text: [room.furniture, room.note].filter(Boolean).join(' | '),
+          type: t,
+          source: 'staff',
+        },
+      ]);
+    }
+    return { id, roomType: t };
+  }
+
   /** Đồng bộ dùng cấu hình đã lưu — cho nút một-cú-bấm ở màn Phòng trọ. */
   async syncSaved(userId?: string, softDelete = false) {
     const cfg = await this.getConfig();
@@ -400,6 +499,9 @@ export class SheetsService implements OnModuleInit, OnModuleDestroy {
     const iStay = col('thoi gian'); // "Thời gian ở"
     const iSale = col('gia sale') >= 0 ? col('gia sale') : col('sale'); // "Giá sale"
     const iType = col('loai phong'); // "Loại phòng" (studio, gác, phòng thường...)
+    const iImg = col('link anh'); // "Link ảnh" -> ảnh/video demo
+    const iReal = col('thuc te'); // "Video/ ảnh thực tế"
+    const iLoc = col('diem hen'); // "Điểm hẹn khách" -> vị trí (Google Maps)
     if (iAddr < 0 || iRoom < 0 || iPrice < 0) {
       throw new BadRequestException(
         'Thiếu cột bắt buộc: cần có "Địa chỉ", "Phòng", "Giá cho thuê" trong ' +
@@ -430,8 +532,33 @@ export class SheetsService implements OnModuleInit, OnModuleDestroy {
     }[] = [];
     // Nhãn (mô tả -> loại) để tích luỹ dữ liệu train sau này (cách 2).
     const labels: { text: string; type: string; source: string }[] = [];
+    // Loại do nhân viên gán tay (nhãn vàng) — ưu tiên trên mọi dò tự động.
+    const overrides = await this.getTypeOverrides();
 
-    for (const r of rows.slice(1)) {
+    // Link ảnh/video/vị trí nằm ở HYPERLINK của ô -> values.get không lấy được.
+    // Nếu có cột link thì đọc thêm grid data (căn theo cùng range -> cùng chỉ số
+    // hàng với rows). Lỗi đọc grid -> bỏ qua link, không làm hỏng đồng bộ.
+    const media: Record<
+      string,
+      { demo?: string; real?: string; location?: string }
+    > = {};
+    let gridRows: sheets_v4.Schema$RowData[] = [];
+    if (iImg >= 0 || iReal >= 0 || iLoc >= 0) {
+      try {
+        const grid = await sheets.spreadsheets.get({
+          spreadsheetId,
+          ranges: [range],
+          includeGridData: true,
+          fields:
+            'sheets(data(rowData(values(hyperlink,formattedValue,userEnteredValue(stringValue,formulaValue)))))',
+        });
+        gridRows = grid.data.sheets?.[0]?.data?.[0]?.rowData ?? [];
+      } catch (e) {
+        this.logger.warn(`Đọc link (grid) lỗi (bỏ qua): ${String(e)}`);
+      }
+    }
+
+    for (const [idx, r] of rows.slice(1).entries()) {
       const addr = String(r[iAddr] ?? '').trim();
       const room = String(r[iRoom] ?? '').trim();
       if (!addr || !room) {
@@ -467,13 +594,27 @@ export class SheetsService implements OnModuleInit, OnModuleDestroy {
       );
       const salePrice = iSale >= 0 ? parseMoney(r[iSale]) : 0;
       const furniture = iFurn >= 0 ? String(r[iFurn] ?? '').trim() || null : null;
+      // Link theo TỪNG phòng: đọc hyperlink của 3 cột từ grid (căn theo idx).
+      const gv = gridRows[idx + 1]?.values ?? [];
+      const demo = iImg >= 0 ? cellUrl(gv[iImg]) : null;
+      const real = iReal >= 0 ? cellUrl(gv[iReal]) : null;
+      const location = iLoc >= 0 ? cellUrl(gv[iLoc]) : null;
+      if (demo || real || location) {
+        media[roomCode] = {
+          ...(demo ? { demo } : {}),
+          ...(real ? { real } : {}),
+          ...(location ? { location } : {}),
+        };
+      }
       // Loại phòng: ưu tiên cột "Loại phòng"; không có thì DÒ trong nội thất +
       // ghi chú (VD "Gác xép mới sạch" -> gác, "phòng studio" -> studio).
       const explicitType = iType >= 0 ? String(r[iType] ?? '').trim() : '';
-      // Nguồn loại: cột "Loại phòng" (người nhập, chuẩn nhất) -> keyword -> fuzzy.
-      const det = explicitType
-        ? { type: explicitType, source: 'sheet_column' as const }
-        : detectRoomTypeSource(furniture, note);
+      // Ưu tiên: nhân viên gán tay (nhãn vàng) > cột "Loại phòng" > keyword > fuzzy.
+      const det = overrides[roomCode]
+        ? { type: overrides[roomCode], source: 'staff' as const }
+        : explicitType
+          ? { type: explicitType, source: 'sheet_column' as const }
+          : detectRoomTypeSource(furniture, note);
       const roomType = det?.type || null;
       // Gom nhãn để tích dữ liệu (chỉ khi có mô tả để làm đầu vào học).
       if (det && (furniture || note)) {
@@ -603,6 +744,7 @@ export class SheetsService implements OnModuleInit, OnModuleDestroy {
     });
 
     await this.logRoomTypeDataset(labels);
+    await this.saveMedia(media);
 
     return { batchId: batch.id, created, updated, skipped, deleted, marked, errors };
   }
