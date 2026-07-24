@@ -82,6 +82,7 @@ export class AiService {
       intent,
       matchedRooms,
       safe.safeSuggestions,
+      this.lastCustomerText(req),
     );
 
     // Ghi lại lần gợi ý này để sau ghép với câu nhân viên thực sự gửi.
@@ -180,23 +181,32 @@ export class AiService {
   }
 
   /**
-   * Đính link ảnh/video/vị trí THẬT vào cuối mỗi câu gợi ý, chỉ khi khách hỏi.
-   * - ASK_MEDIA: ưu tiên link THỰC TẾ -> nếu không có thì DEMO -> nếu không có
-   *   cả hai thì báo khách chưa có ảnh/video + xin liên hệ (MEDIA_UNAVAILABLE_MSG).
-   * - ASK_ADDRESS / WANT_VIEWING: đính link vị trí (Google Maps) nếu có.
-   * Link lấy từ map room_media (đọc qua AppSetting, không phụ thuộc SheetsModule
-   * để tránh phụ thuộc vòng). Model không bao giờ tự sinh URL -> không bịa link.
+   * Đính link ảnh/video/vị trí THẬT vào cuối mỗi câu gợi ý khi khách CÓ Ý hỏi —
+   * dựa trên intent HOẶC từ khoá trong câu khách (vì câu kiểu "còn phòng, cho
+   * xem ẢNH" bị nhận là ASK_AVAILABILITY nhưng vẫn cần đính ảnh).
+   * - Muốn ảnh: ưu tiên link THỰC TẾ -> DEMO -> không có cả hai thì báo chưa có
+   *   + xin liên hệ (MEDIA_UNAVAILABLE_MSG).
+   * - Muốn vị trí: đính link Google Maps nếu có.
+   * Cả hai có thể cùng đính (khách hỏi cả ảnh lẫn vị trí).
+   * Link lấy từ map room_media (đọc qua AppSetting, tránh phụ thuộc SheetsModule).
+   * Model KHÔNG bao giờ tự sinh URL -> không bịa link.
    */
   private async attachMediaLinks(
     intent: CustomerIntent,
     matchedRooms: MatchedRoom[],
     suggestions: string[],
+    lastText?: string,
   ): Promise<string[]> {
-    const isMedia = intent === CustomerIntent.ASK_MEDIA;
-    const isLoc =
+    // Từ khoá dò trên câu ĐÃ CÓ DẤU (không bỏ dấu) — tránh "anh" (=anh/bạn) bị
+    // nhầm với "ảnh". Khớp cả khi intent chưa bắt đúng ý (câu hỏi lẫn nhiều ý).
+    const text = (lastText || '').toLowerCase();
+    const wantsMedia =
+      intent === CustomerIntent.ASK_MEDIA || /ảnh|hình|video|clip/.test(text);
+    const wantsLoc =
       intent === CustomerIntent.ASK_ADDRESS ||
-      intent === CustomerIntent.WANT_VIEWING;
-    if ((!isMedia && !isLoc) || !matchedRooms.length) return suggestions;
+      intent === CustomerIntent.WANT_VIEWING ||
+      /vị trí|địa chỉ|bản đồ|ở đâu|chỗ nào/.test(text);
+    if ((!wantsMedia && !wantsLoc) || !matchedRooms.length) return suggestions;
 
     type MediaMap = Record<
       string,
@@ -212,38 +222,44 @@ export class AiService {
       return suggestions; // không đọc được -> trả nguyên, không chặn gợi ý
     }
 
-    let block = '';
-    if (isMedia) {
+    const blocks: string[] = [];
+
+    if (wantsMedia) {
       // Ưu tiên phòng khớp ĐẦU TIÊN có ảnh/video (thực tế trước, demo sau).
+      let mb = '';
       for (const room of matchedRooms) {
         const m = map[room.roomCode];
         if (m?.real) {
-          block = `🎥 Ảnh/video thực tế: ${m.real}`;
+          mb = `🎥 Ảnh/video thực tế: ${m.real}`;
           break;
         }
         if (m?.demo) {
-          block = `📷 Ảnh/video (mẫu): ${m.demo}`;
+          mb = `📷 Ảnh/video (mẫu): ${m.demo}`;
           break;
         }
       }
       // Không phòng nào có ảnh/video -> báo khách chưa có + xin liên hệ.
-      if (!block) {
-        block =
+      blocks.push(
+        mb ||
           process.env.MEDIA_UNAVAILABLE_MSG ||
           'Phòng này bên em hiện chưa có sẵn ảnh/video ạ. Anh/chị để lại ' +
-            'SĐT/Zalo, em gửi ngay khi cập nhật nhé!';
-      }
-    } else {
-      // Vị trí: đính nếu có; không có thì thôi (không cần báo gì thêm).
+            'SĐT/Zalo, em gửi ngay khi cập nhật nhé!',
+      );
+    }
+
+    if (wantsLoc) {
+      // Vị trí: đính nếu có; không có thì thôi (không báo gì thêm).
       for (const room of matchedRooms) {
         const m = map[room.roomCode];
         if (m?.location) {
-          block = `📍 Vị trí: ${m.location}`;
+          blocks.push(`📍 Vị trí: ${m.location}`);
           break;
         }
       }
     }
-    if (!block) return suggestions;
+
+    if (!blocks.length) return suggestions;
+    const block = blocks.join('\n');
     return suggestions.map((s) => `${s}\n${block}`);
   }
 
