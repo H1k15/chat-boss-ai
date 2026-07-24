@@ -1,0 +1,24 @@
+#!/bin/sh
+# Chặn push THẲNG lên nhánh được bảo vệ (main). Bắt buộc tạo branch + mở PR.
+# Bật hook: git config core.hooksPath .githooks  (đã set sẵn khi cài).
+protected="main master"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  branch="${remote_ref##refs/heads/}"
+  for p in $protected; do
+    if [ "$branch" = "$p" ]; then
+      echo ""
+      echo "  ✋ Không được push thẳng lên nhánh '$p'."
+      echo ""
+      echo "  Hãy tạo branch rồi push:"
+      echo "     git switch -c feat/<ten-tinh-nang>"
+      echo "     git push -u origin feat/<ten-tinh-nang>"
+      echo ""
+      echo "  Sau đó mở Pull Request để merge vào '$p'."
+      echo ""
+      exit 1
+    fi
+  done
+done
+
+exit 0
