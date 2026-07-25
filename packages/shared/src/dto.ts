@@ -27,12 +27,25 @@ export interface ExtractedInfo {
   peopleCount?: number;
   moveInDate?: string; // ISO date
   requirements?: string[]; // ["gác", "wc_rieng", "may_lanh"]
+  // Yêu cầu KHOẢNG CÁCH (bóc bằng code, model không tự tính). Xem distance-parser.
+  targetLocation?: string; // điểm mốc lấy làm tâm ("ĐH Công nghiệp")
+  radiusKm?: number; // "bán kính N km"
+  maxDistanceKm?: number; // "cách không quá N km" / suy từ thời gian đi lại
+  distanceRequirement?: 'within' | 'near' | 'around' | 'none';
+  transportMode?: 'walk' | 'motorbike' | 'car' | 'unknown';
 }
+
+/**
+ * Vị trí phòng so với KHU KHÁCH HỎI: đúng khu / cùng cụm lân cận (vài km) /
+ * khu khác. Chỉ có giá trị khi khách đã nói khu vực mong muốn.
+ */
+export type AreaRelation = 'exact' | 'nearby' | 'other';
 
 export interface MatchedRoom {
   id: string;
   roomCode: string;
   area: string;
+  areaRelation?: AreaRelation;
   address?: string;
   price: number; // VND
   roomType?: string;
@@ -42,6 +55,39 @@ export interface MatchedRoom {
   imageLinks?: string[];
   videoLinks?: string[];
   matchScore: number; // 0..1
+  // Khoảng cách (km) tới điểm mốc khách hỏi — CHỈ có khi geocode được cả phòng
+  // lẫn điểm mốc (Haversine bằng code). Không có toạ độ -> undefined (KHÔNG bịa).
+  distanceKm?: number;
+}
+
+/**
+ * Kết quả phân giải điểm mốc khách hỏi (geocode qua Nominatim).
+ * - OK: xác định được toạ độ, đã lọc theo bán kính.
+ * - AMBIGUOUS: nhiều kết quả -> cần nhân viên xác nhận (không tự chọn).
+ * - NOT_FOUND / GEOCODE_FAILED: fallback lọc theo khu vực, KHÔNG báo khoảng cách.
+ * - NONE: khách không hỏi theo khoảng cách.
+ */
+export type LocationStatus =
+  | 'OK'
+  | 'AMBIGUOUS'
+  | 'NOT_FOUND'
+  | 'GEOCODE_FAILED'
+  | 'NONE';
+
+export interface LocationCandidate {
+  displayName: string;
+  lat: number;
+  lng: number;
+}
+
+export interface LocationResolution {
+  status: LocationStatus;
+  target?: string; // điểm mốc đã dùng
+  lat?: number;
+  lng?: number;
+  radiusKm?: number; // bán kính hiệu lực đã áp dụng
+  candidates?: LocationCandidate[]; // khi AMBIGUOUS
+  usedAreaFallback?: boolean; // đã phải lọc theo khu vì không geocode được
 }
 
 // Request cho POST /ai/suggest
@@ -69,6 +115,9 @@ export interface AiSuggestResponse {
   // nhân viên gửi thật thì gọi POST /ai/feedback kèm mã này — nhờ đó ghép được
   // cặp "AI đề xuất -> người gửi", tín hiệu để fine-tune sau này.
   suggestionLogId?: string;
+  // Phân giải điểm mốc (chỉ có khi khách hỏi theo khoảng cách). AMBIGUOUS =
+  // nhân viên cần xác nhận địa điểm.
+  location?: LocationResolution;
 }
 
 // Request cho POST /ai/feedback — nhân viên báo đã gửi câu nào.

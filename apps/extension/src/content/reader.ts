@@ -6,23 +6,49 @@ import type { ConversationTurn } from '@cba/shared';
 export function readConversation(
   selectors: FbSelectors = DEFAULT_SELECTORS,
 ): ConversationTurn[] {
-  const thread = document.querySelector(selectors.messengerThread);
-  if (!thread) return [];
+  for (const thread of findThreadContainers(selectors)) {
+    const turns = readTurns(thread, selectors);
+    if (turns.length) return turns.slice(-20); // chỉ lấy 20 lượt gần nhất
+  }
+  return [];
+}
 
+// Thử lần lượt từng selector; trong mỗi selector, duyệt các phần tử theo thứ tự
+// ngược DOM để ưu tiên cửa sổ chat popup mở sau cùng (nằm cuối trang).
+function findThreadContainers(selectors: FbSelectors): Element[] {
+  const containers: Element[] = [];
+  for (const sel of selectors.messengerThread.split(',')) {
+    const found = Array.from(document.querySelectorAll(sel.trim()));
+    containers.push(...found.reverse());
+  }
+  return containers;
+}
+
+function readTurns(thread: Element, selectors: FbSelectors): ConversationTurn[] {
   const rows = Array.from(thread.querySelectorAll(selectors.messageRow));
   const turns: ConversationTurn[] = [];
 
   for (const row of rows) {
     const textEl = row.querySelector(selectors.messageText);
     const text = textEl?.textContent?.trim();
-    if (!text) continue;
+    if (!text || isMetaText(text)) continue;
 
     // Heuristic phân biệt khách/nhân viên: tin của mình thường căn phải.
     // Đây là ví dụ — cần tinh chỉnh theo DOM thực tế.
     const isStaff = isRightAligned(row as HTMLElement);
     turns.push({ role: isStaff ? 'staff' : 'customer', text });
   }
-  return turns.slice(-20); // chỉ lấy 20 lượt gần nhất
+  return turns;
+}
+
+// Bỏ các dòng không phải tin nhắn: mốc thời gian (08:38, 09:40) và
+// thông báo mã hoá đầu cuối của Facebook.
+function isMetaText(text: string): boolean {
+  return (
+    /^\d{1,2}:\d{2}$/.test(text) ||
+    text.includes('mã hóa đầu cuối') ||
+    text.includes('end-to-end encrypted')
+  );
 }
 
 function isRightAligned(el: HTMLElement): boolean {

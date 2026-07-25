@@ -6,9 +6,11 @@ import { Controller, Get } from '@nestjs/common';
 //
 // LƯU Ý: đây là giá trị ví dụ, phải đối chiếu DOM Messenger thật khi triển khai.
 const SELECTORS = {
-  version: 1,
+  version: 2,
   selectors: {
-    messengerThread: '[role="main"]',
+    // Ưu tiên [role="grid"] (danh sách tin nhắn — có cả trong cửa sổ chat
+    // popup trên trang chủ), fallback [role="main"] (Messenger toàn màn hình).
+    messengerThread: '[role="grid"], [role="main"]',
     messageRow: '[role="row"]',
     messageText: '[dir="auto"]',
     composer: '[contenteditable="true"][role="textbox"]',

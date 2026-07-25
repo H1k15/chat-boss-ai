@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { GeocodeModule } from '../geocode/geocode.module';
 import { AiController } from './ai.controller';
 import { AiService } from './ai.service';
 import { IntentClassifierService } from './pipeline/intent-classifier.service';
@@ -22,6 +23,7 @@ const llmProvider = {
 };
 
 @Module({
+  imports: [GeocodeModule], // geocode Nominatim cho lọc theo bán kính
   controllers: [AiController],
   providers: [
     AiService,
