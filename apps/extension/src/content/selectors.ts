@@ -6,6 +6,9 @@
 // Đây là ví dụ khởi tạo — đội bảo trì cần đối chiếu DOM thực tế khi triển khai.
 
 export interface FbSelectors {
+  // Danh sách selector phân tách bằng dấu phẩy, thử lần lượt từ trái sang phải.
+  // Cần nhiều ứng viên vì hội thoại có thể là Messenger toàn màn hình
+  // ([role="main"]) hoặc cửa sổ chat popup trên trang chủ ([role="grid"]).
   messengerThread: string; // container hội thoại đang mở
   messageRow: string; // từng dòng tin nhắn
   messageText: string; // phần text trong 1 dòng
@@ -16,7 +19,7 @@ export interface FbSelectors {
 }
 
 export const DEFAULT_SELECTORS: FbSelectors = {
-  messengerThread: '[role="main"]',
+  messengerThread: '[role="grid"], [role="main"]',
   messageRow: '[role="row"]',
   messageText: '[dir="auto"]',
   composer: '[contenteditable="true"][role="textbox"]',
