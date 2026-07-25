@@ -10,6 +10,7 @@ const nav = [
   { href: '/appointments', label: 'Lịch hẹn' },
   { href: '/care-tasks', label: 'Chăm sóc' },
   { href: '/templates', label: 'Mẫu câu AI' },
+  { href: '/landmarks', label: 'Điểm mốc AI' },
   { href: '/import', label: 'Nhập phòng (Excel)' },
   { href: '/reports', label: 'Báo cáo' },
   { href: '/settings', label: 'Cấu hình' },
