@@ -90,6 +90,21 @@ export class ReplyGeneratorService {
     return (result.suggestions ?? []).slice(0, 3);
   }
 
+  private areaRelationLabel(
+    relation: MatchedRoom['areaRelation'],
+  ): string | undefined {
+    switch (relation) {
+      case 'exact':
+        return 'đúng khu khách hỏi';
+      case 'nearby':
+        return 'gần khu khách hỏi (đi lại vài km)';
+      case 'other':
+        return 'KHÁC khu khách hỏi';
+      default:
+        return undefined;
+    }
+  }
+
   /** Không đưa SĐT khách vào prompt sinh câu trả lời — model không cần nó. */
   private forPrompt(info: ExtractedInfo): Omit<ExtractedInfo, 'phone'> {
     const { phone: _phone, ...rest } = info;
@@ -104,6 +119,8 @@ export class ReplyGeneratorService {
     return {
       roomCode: room.roomCode,
       area: room.area,
+      // Để model nói thật khi phòng không nằm đúng khu khách hỏi.
+      soVoiKhuKhachHoi: this.areaRelationLabel(room.areaRelation),
       address: room.address,
       price: room.price,
       roomType: room.roomType,
