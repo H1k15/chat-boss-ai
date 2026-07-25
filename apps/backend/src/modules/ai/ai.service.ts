@@ -7,6 +7,7 @@ import {
   CustomerStatus,
   ExtractedInfo,
   MatchedRoom,
+  NotifyEvent,
 } from '@cba/shared';
 import { Customer, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -16,6 +17,9 @@ import { RoomMatcherService } from './pipeline/room-matcher.service';
 import { ReplyGeneratorService } from './pipeline/reply-generator.service';
 import { SafetyGuardService } from './pipeline/safety-guard.service';
 import { OrchestratorService } from './pipeline/orchestrator.service';
+import { parseViewingDateTime } from './pipeline/viewing-parser';
+import { TelegramService } from '../telegram/telegram.service';
+import { AppointmentsService } from '../appointments/appointments.service';
 
 // Orchestrator: chạy pipeline 5 bước và ghép kết quả.
 @Injectable()
@@ -30,6 +34,8 @@ export class AiService {
     private readonly replies: ReplyGeneratorService,
     private readonly safety: SafetyGuardService,
     private readonly orchestrator: OrchestratorService,
+    private readonly telegram: TelegramService,
+    private readonly appointments: AppointmentsService,
   ) {}
 
   async suggest(
@@ -58,11 +64,13 @@ export class AiService {
 
     // [4] ORCHESTRATOR (TẤT ĐỊNH) quyết stage + next_action + câu hỏi kế tiếp.
     // Model chỉ DIỄN ĐẠT (không tự quyết bước, không tự chọn phòng).
+    const adminTemplates = await this.loadTemplates(intent);
     const plan = this.orchestrator.plan({
       extracted,
       intent,
       conversation: req.conversation,
       matchedRooms,
+      adminTemplates,
       now: new Date(),
     });
     const withHint = (): string =>
@@ -96,6 +104,20 @@ export class AiService {
     // Cập nhật CRM nếu hội thoại hé lộ thêm.
     if (customer) {
       await this.updateCustomer(customer, extracted);
+    }
+
+    // Side-effect TẤT ĐỊNH theo quyết định orchestrator. Không để lỗi phụ làm
+    // hỏng việc trả gợi ý (bọc catch).
+    if (plan.decision.action === 'HANDOFF') {
+      await this.notifyHandoff(req, plan.decision.handoffReason).catch((e) =>
+        this.logger.warn(`Handoff notify lỗi: ${e}`),
+      );
+    }
+    if (plan.decision.createAppointment && req.customerId) {
+      await this.autoCreateAppointment(
+        req.customerId,
+        this.lastCustomerText(req),
+      ).catch((e) => this.logger.warn(`Auto tạo lịch lỗi: ${e}`));
     }
 
     // Gợi ý chính + phương án template (để nhân viên chọn) nếu khác nhau.
@@ -312,6 +334,62 @@ export class AiService {
     if (!blocks.length) return suggestions;
     const block = blocks.join('\n');
     return suggestions.map((s) => `${s}\n${block}`);
+  }
+
+  /**
+   * Khi orchestrator quyết HANDOFF: đẩy Telegram cho nhân viên kèm tóm tắt
+   * hội thoại. Dedupe theo (profile + lý do) để không spam mỗi lần bấm Gợi ý.
+   */
+  private async notifyHandoff(
+    req: AiSuggestRequest,
+    reason?: string,
+  ): Promise<void> {
+    await this.telegram.notify({
+      event: NotifyEvent.URGENT_CALL,
+      text: [
+        '🆘 <b>Cần nhân viên xử lý</b>',
+        `Lý do: ${reason || '(không rõ)'}`,
+        `Kênh: ${req.channel}`,
+        `Tóm tắt:\n${this.conversationSummary(req.conversation)}`,
+      ].join('\n'),
+      payload: { facebookProfileId: req.facebookProfileId, reason },
+      dedupeKey: `handoff:${req.facebookProfileId}:${reason ?? ''}`,
+    });
+  }
+
+  /**
+   * Auto tạo lịch xem khi orchestrator xác định đủ ngày+giờ+SĐT. CODE tính giờ
+   * (viewing-parser), không để model tạo lịch. Idempotent: đã có lịch SCHEDULED
+   * cho khách thì bỏ qua (tránh trùng khi bấm Gợi ý nhiều lần).
+   */
+  private async autoCreateAppointment(
+    customerId: string,
+    text?: string,
+  ): Promise<void> {
+    if (!text) return;
+    const when = parseViewingDateTime(text, new Date());
+    if (!when) return;
+    const existing = await this.prisma.appointment.findFirst({
+      where: { customerId, status: 'SCHEDULED' },
+    });
+    if (existing) return;
+    await this.appointments.create({
+      customerId,
+      appointmentTime: when.toISOString(),
+      note: 'Tự tạo từ hội thoại (AI orchestrator)',
+    });
+    this.logger.log(
+      `Auto tạo lịch xem customer=${customerId} lúc ${when.toISOString()}`,
+    );
+  }
+
+  /** Tóm tắt hội thoại (6 lượt cuối) cho thông báo handoff. */
+  private conversationSummary(conv: ConversationTurn[]): string {
+    return conv
+      .slice(-6)
+      .map((t) => `${t.role === 'customer' ? 'Khách' : 'NV'}: ${t.text}`)
+      .join('\n')
+      .slice(0, 500);
   }
 
   /** Lấy tin nhắn cuối cùng của khách trong hội thoại (để lưu kèm log). */

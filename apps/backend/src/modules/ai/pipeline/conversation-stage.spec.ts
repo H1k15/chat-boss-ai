@@ -118,6 +118,19 @@ describe('decide — state machine + next_action (tất định)', () => {
     expect(d.handoffReason).toBeTruthy();
   });
 
+  it('Sau xem - không thích -> ASK_POST_VIEWING (hỏi 1 lý do)', () => {
+    const d = run({ lastCustomerText: 'xem phòng rồi nhưng không thích lắm' });
+    expect(d.action).toBe('ASK_POST_VIEWING');
+    expect(d.stage).toBe('POST_VIEWING_FOLLOW_UP');
+    expect(d.fallbackMessage).toMatch(/giá|vị trí|diện tích|nội thất/);
+  });
+
+  it('Sau xem - chưa đi được -> ASK_POST_VIEWING (đổi lịch, không trách)', () => {
+    const d = run({ lastCustomerText: 'bận quá mình chưa qua xem được' });
+    expect(d.action).toBe('ASK_POST_VIEWING');
+    expect(d.fallbackMessage).toMatch(/đổi lịch/);
+  });
+
   it('Chống hỏi lại: đã có khu vực -> không ra ASK_LOCATION', () => {
     const d = run({ profile: P({ hasLocation: true }) });
     expect(d.action).not.toBe('ASK_LOCATION');
