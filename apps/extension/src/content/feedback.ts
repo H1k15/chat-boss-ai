@@ -52,6 +52,7 @@ function onSend(finalText: string): void {
 // LƯU Ý: đây là heuristic theo hành vi Messenger hiện tại — cần đối chiếu DOM
 // thực tế khi triển khai, giống các selector trong selectors.ts.
 export function installSendWatcher(): void {
+  // (1) Enter trong ô soạn (Messenger: Enter = gửi, Shift+Enter = xuống dòng).
   document.addEventListener(
     'keydown',
     (e) => {
@@ -59,6 +60,24 @@ export function installSendWatcher(): void {
       const el = e.target as HTMLElement | null;
       if (!el || !el.matches(DEFAULT_SELECTORS.composer)) return;
       onSend(el.textContent ?? '');
+    },
+    true,
+  );
+
+  // (2) Bấm NÚT GỬI (nhiều NV bấm nút thay vì Enter). Đọc ô soạn TRƯỚC khi FB
+  // xoá nội dung. Nhận nút qua aria-label ("Send"/"Gửi"/"Press enter to send").
+  document.addEventListener(
+    'click',
+    (e) => {
+      const el = e.target as HTMLElement | null;
+      const btn = el?.closest('[role="button"],button') as HTMLElement | null;
+      if (!btn) return;
+      const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+      if (!/send|gửi|gui/.test(label)) return;
+      const composer = document.querySelector(
+        DEFAULT_SELECTORS.composer,
+      ) as HTMLElement | null;
+      if (composer) onSend(composer.textContent ?? '');
     },
     true,
   );

@@ -19,6 +19,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { ExtensionModule } from './modules/extension/extension.module';
 import { ReplyTemplatesModule } from './modules/reply-templates/reply-templates.module';
 import { SheetsModule } from './modules/sheets/sheets.module';
+import { AiConfigModule } from './modules/ai-config/ai-config.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SheetsModule } from './modules/sheets/sheets.module';
     ExtensionModule,
     ReplyTemplatesModule,
     SheetsModule,
+    AiConfigModule,
   ],
   // Guard đăng ký toàn cục: mặc định MỌI route đều phải đăng nhập, trừ route
   // gắn @Public(). Thứ tự quan trọng — xác thực (JWT) phải chạy trước phân

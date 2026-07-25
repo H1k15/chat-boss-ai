@@ -14,8 +14,23 @@ import {
 import {
   buildCareSystem,
   buildReplySystem,
+  CONSTRAINED_REPLY_SYSTEM,
   formatConversation,
 } from '../prompts';
+
+// Input SIẾT cho model ở chế độ chỉ-diễn-đạt (mục XIV). Do orchestrator dựng.
+export interface ConstrainedInput {
+  stage: string;
+  nextAction: string;
+  verifiedFacts: string[];
+  knownSlots: string[];
+  missingSlots: string[];
+  requiredQuestion: string;
+  forbiddenTopics: string[];
+  answerHint?: string;
+  maxWords: number;
+  rooms?: Record<string, unknown>[];
+}
 
 // [4] Sinh 2-3 gợi ý câu trả lời — chỉ dùng dữ liệu phòng đã match.
 @Injectable()
@@ -88,6 +103,39 @@ export class ReplyGeneratorService {
       maxTokens: 768,
     });
     return (result.suggestions ?? []).slice(0, 3);
+  }
+
+  /**
+   * Chế độ CHỈ DIỄN ĐẠT (mục XIV): model nhận input đã siết, chỉ viết câu.
+   * next_action/câu hỏi/dữ liệu do CODE quyết. Lỗi/model rỗng -> trả null để
+   * orchestrator dùng template tất định.
+   */
+  async generateConstrained(input: ConstrainedInput): Promise<string | null> {
+    const payload = {
+      language: 'vi',
+      tone: 'friendly_professional',
+      stage: input.stage,
+      verified_facts: input.verifiedFacts,
+      known_slots: input.knownSlots,
+      missing_slots: input.missingSlots,
+      next_action: input.nextAction,
+      required_question: input.requiredQuestion,
+      forbidden_topics: input.forbiddenTopics,
+      ...(input.answerHint ? { answer_hint: input.answerHint } : {}),
+      ...(input.rooms?.length ? { rooms: input.rooms } : {}),
+      max_words: input.maxWords,
+    };
+    try {
+      const text = await this.llm.completeText({
+        system: CONSTRAINED_REPLY_SYSTEM,
+        messages: [{ role: 'user', content: JSON.stringify(payload) }],
+        maxTokens: 400,
+      });
+      const clean = (text ?? '').trim();
+      return clean.length ? clean : null;
+    } catch {
+      return null;
+    }
   }
 
   private areaRelationLabel(

@@ -7,6 +7,7 @@ import { InfoExtractorService } from './pipeline/info-extractor.service';
 import { RoomMatcherService } from './pipeline/room-matcher.service';
 import { ReplyGeneratorService } from './pipeline/reply-generator.service';
 import { SafetyGuardService } from './pipeline/safety-guard.service';
+import { OrchestratorService } from './pipeline/orchestrator.service';
 import { LLM_PROVIDER } from './llm/llm-provider.interface';
 import { ClaudeProvider } from './llm/claude.provider';
 import { OpenAiProvider } from './llm/openai.provider';
@@ -32,6 +33,7 @@ const llmProvider = {
     RoomMatcherService,
     ReplyGeneratorService,
     SafetyGuardService,
+    OrchestratorService,
     ClaudeProvider,
     OpenAiProvider,
     llmProvider,

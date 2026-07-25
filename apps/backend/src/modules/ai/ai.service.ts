@@ -15,6 +15,7 @@ import { InfoExtractorService } from './pipeline/info-extractor.service';
 import { RoomMatcherService } from './pipeline/room-matcher.service';
 import { ReplyGeneratorService } from './pipeline/reply-generator.service';
 import { SafetyGuardService } from './pipeline/safety-guard.service';
+import { OrchestratorService } from './pipeline/orchestrator.service';
 
 // Orchestrator: chạy pipeline 5 bước và ghép kết quả.
 @Injectable()
@@ -28,6 +29,7 @@ export class AiService {
     private readonly matcher: RoomMatcherService,
     private readonly replies: ReplyGeneratorService,
     private readonly safety: SafetyGuardService,
+    private readonly orchestrator: OrchestratorService,
   ) {}
 
   async suggest(
@@ -54,45 +56,84 @@ export class AiService {
     const { rooms: matchedRooms, location } =
       await this.matcher.matchDetailed(extracted);
 
-    // [4] Sinh gợi ý, kèm mẫu câu admin cấu hình cho ý định này
-    const templates = await this.loadTemplates(intent);
-    const { suggestions, nextAction } = await this.replies.generate({
-      intent,
+    // [4] ORCHESTRATOR (TẤT ĐỊNH) quyết stage + next_action + câu hỏi kế tiếp.
+    // Model chỉ DIỄN ĐẠT (không tự quyết bước, không tự chọn phòng).
+    const plan = this.orchestrator.plan({
       extracted,
-      matchedRooms,
+      intent,
       conversation: req.conversation,
-      templates,
+      matchedRooms,
+      now: new Date(),
     });
+    const withHint = (): string =>
+      plan.decision.answerHint
+        ? `${plan.decision.answerHint} ${plan.decision.fallbackMessage}`
+        : plan.decision.fallbackMessage;
 
-    // [5] Kiểm tra an toàn
-    const safe = this.safety.check(suggestions, matchedRooms);
+    let message = await this.replies.generateConstrained(plan.constrained);
+    let fallbackUsed = false;
+    if (!message) {
+      message = withHint(); // model hỏng/timeout -> template tất định
+      fallbackUsed = true;
+    }
 
-    // Ghi log mọi lần bị chặn để admin theo dõi chất lượng model (mục 12).
-    if (safe.reasons.length) {
+    // [5] SafetyGuard: giá/SĐT/mã phòng + không hỏi lại slot đã biết + không
+    // khan hiếm/cam kết giả. Vi phạm -> thay bằng template an toàn.
+    const safe = this.safety.checkOrchestrated(
+      message,
+      matchedRooms,
+      plan.decision.knownSlots,
+    );
+    let primary = safe.safeMessage;
+    if (safe.blocked) {
+      primary = withHint();
+      fallbackUsed = true;
       await this.logSafetyBlock(req, userId, safe.reasons);
     }
 
-    // Cập nhật lại thông tin khách đã biết, nếu hội thoại hé lộ thêm.
+    const nextAction = plan.decision.nextAction;
+
+    // Cập nhật CRM nếu hội thoại hé lộ thêm.
     if (customer) {
       await this.updateCustomer(customer, extracted);
     }
 
-    // Đính link ảnh/video/vị trí THẬT (từ map room_media) vào cuối gợi ý khi
-    // khách hỏi — CODE ghép link, model KHÔNG tự gõ URL (chống bịa link). Chạy
-    // sau SafetyGuard vì URL không phải giá/SĐT nên không ảnh hưởng kiểm tra.
+    // Gợi ý chính + phương án template (để nhân viên chọn) nếu khác nhau.
+    const rawSuggestions = [primary];
+    const templateAlt = withHint();
+    if (templateAlt.trim() && templateAlt.trim() !== primary.trim()) {
+      rawSuggestions.push(templateAlt);
+    }
+
+    // Đính link ảnh/video/vị trí THẬT khi khách hỏi (CODE ghép link, không bịa).
     const finalSuggestions = await this.attachMediaLinks(
       intent,
       matchedRooms,
-      safe.safeSuggestions,
+      rawSuggestions,
       this.lastCustomerText(req),
     );
 
-    // Ghi lại lần gợi ý này để sau ghép với câu nhân viên thực sự gửi.
+    // Log quan sát (mục XVIII) — không log SĐT đầy đủ / khoá.
+    this.logger.log(
+      `stage=${plan.decision.stage} action=${plan.decision.action} ` +
+        `known=[${plan.decision.knownSlots}] missing=[${plan.decision.missingSlots}] ` +
+        `rooms=${matchedRooms.length} fallback=${fallbackUsed} blocked=${safe.blocked}` +
+        (plan.decision.handoffReason ? ` handoff="${plan.decision.handoffReason}"` : ''),
+    );
+
     const suggestionLogId = await this.logAiSuggest(req, userId, {
       intent,
       extracted,
       suggestions: finalSuggestions,
       matchedRoomCodes: matchedRooms.map((r) => r.roomCode),
+      // Ngữ cảnh orchestrator để script phân tích log lọc ca sai (mục b).
+      stage: plan.decision.stage,
+      action: plan.decision.action,
+      nextAction,
+      knownSlots: plan.decision.knownSlots,
+      missingSlots: plan.decision.missingSlots,
+      fallbackUsed,
+      blocked: safe.blocked,
     });
 
     return {
@@ -104,7 +145,6 @@ export class AiService {
       customerStageHint: this.stageHint(intent, extracted),
       safety: { blocked: safe.blocked, reasons: safe.reasons },
       suggestionLogId,
-      // Chỉ trả khi khách thực sự hỏi theo khoảng cách (status !== NONE).
       ...(location.status !== 'NONE' ? { location } : {}),
     };
   }
@@ -122,6 +162,13 @@ export class AiService {
       extracted: ExtractedInfo;
       suggestions: string[];
       matchedRoomCodes: string[];
+      stage?: string;
+      action?: string;
+      nextAction?: string;
+      knownSlots?: string[];
+      missingSlots?: string[];
+      fallbackUsed?: boolean;
+      blocked?: boolean;
     },
   ): Promise<string | undefined> {
     try {
