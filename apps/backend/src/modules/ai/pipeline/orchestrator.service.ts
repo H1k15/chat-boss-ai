@@ -19,6 +19,7 @@ export class OrchestratorService {
     intent: CustomerIntent;
     conversation: ConversationTurn[];
     matchedRooms: MatchedRoom[];
+    adminTemplates?: string[];
     now?: Date;
   }): { decision: Decision; profile: SlotProfile; constrained: ConstrainedInput } {
     const { extracted, intent, conversation, matchedRooms } = params;
@@ -52,6 +53,9 @@ export class OrchestratorService {
         decision.action === 'ANSWER_ROOM_QUESTION'
           ? matchedRooms.slice(0, 3).map((r) => this.roomFact(r))
           : undefined,
+      adminTemplates: params.adminTemplates?.length
+        ? params.adminTemplates.slice(0, 3)
+        : undefined,
     };
 
     return { decision, profile, constrained };

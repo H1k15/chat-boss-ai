@@ -14,6 +14,7 @@ export type Stage =
   | 'CONTACT_COLLECTION'
   | 'SCHEDULING'
   | 'APPOINTMENT_SET'
+  | 'POST_VIEWING_FOLLOW_UP'
   | 'HUMAN_HANDOFF'
   | 'CLOSED';
 
@@ -31,6 +32,7 @@ export type OrchAction =
   | 'ASK_VIEWING_TIME'
   | 'ASK_CONTACT'
   | 'CREATE_APPOINTMENT'
+  | 'ASK_POST_VIEWING'
   | 'HANDOFF';
 
 export interface StageInput {
@@ -81,7 +83,34 @@ export const TEMPLATES = {
     'Phần này để bạn nhân viên bên mình hỗ trợ bạn kỹ hơn nhé, mình chuyển thông tin ngay ạ.',
   PROPOSE_ROOMS: 'Mình gửi bạn vài phòng phù hợp nhất nhé.',
   ANSWER_ROOM_QUESTION: 'Dạ mình gửi thông tin bạn hỏi ngay ạ.',
+  // Follow-up sau khi xem phòng (mục XII).
+  POST_VIEWED:
+    'Bạn xem phòng rồi thấy thế nào ạ? Có điểm nào chưa ưng để mình lọc lại phòng khác sát nhu cầu hơn nhé.',
+  POST_NOT_LIKED:
+    'Dạ để mình tìm phòng khác hợp hơn. Bạn thấy chưa ưng nhất ở điểm nào — giá, vị trí, diện tích hay nội thất ạ?',
+  POST_UNDECIDED:
+    'Bạn đang phân vân ở điểm nào để mình hỗ trợ rõ hơn nhé (giá, vị trí hay tiện ích)?',
+  POST_NO_SHOW:
+    'Dạ không sao ạ, bạn muốn đổi lịch sang hôm khác cho tiện không ạ?',
 } as const;
+
+// Tín hiệu SAU KHI XEM phòng (mục XII). Ưu tiên: không thích > phân vân >
+// chưa đi được > đã xem chung.
+type PostViewKind = 'not_liked' | 'undecided' | 'no_show' | 'viewed';
+function detectPostViewing(text: string): PostViewKind | undefined {
+  const s = deaccent(text);
+  const viewedCtx = /xem phong roi|xem roi|di xem roi|hom qua xem|vua xem|xem ban chieu|da xem/.test(
+    s,
+  );
+  if (/khong thich|khong ung|khong hop|khong dep|khong vua|te qua|chan qua/.test(s))
+    return 'not_liked';
+  if (/dang phan van|con phan van|suy nghi them|chua quyet|de nghi lai|con lan tan/.test(s))
+    return 'undecided';
+  if (/chua di xem duoc|chua qua duoc|khong den duoc|ban qua|de hom khac|hen hom khac/.test(s))
+    return 'no_show';
+  if (viewedCtx) return 'viewed';
+  return undefined;
+}
 
 // FAQ chen ngang trả lời ngắn TẤT ĐỊNH (mục V) — rồi vẫn quay lại slot còn thiếu.
 const FAQ: { re: RegExp; answer: string }[] = [
@@ -227,7 +256,37 @@ export function decide(input: StageInput): Decision {
     });
   }
 
-  // 2) LUỒNG HẸN XEM — khi khách muốn xem phòng.
+  // 2) SAU KHI XEM — chăm sóc follow-up (ưu tiên hơn luồng hẹn mới).
+  const post = detectPostViewing(lastCustomerText);
+  if (post) {
+    const map: Record<PostViewKind, { tpl: string; q: string }> = {
+      viewed: {
+        tpl: TEMPLATES.POST_VIEWED,
+        q: 'Hỏi khách xem phòng thấy thế nào, điểm nào chưa ưng để mình lọc lại.',
+      },
+      not_liked: {
+        tpl: TEMPLATES.POST_NOT_LIKED,
+        q: 'Hỏi ĐÚNG 1 lý do chính chưa ưng (giá/vị trí/diện tích/nội thất) để lọc lại.',
+      },
+      undecided: {
+        tpl: TEMPLATES.POST_UNDECIDED,
+        q: 'Hỏi khách đang phân vân điểm nào để gỡ vướng, không tạo áp lực.',
+      },
+      no_show: {
+        tpl: TEMPLATES.POST_NO_SHOW,
+        q: 'Hỏi khách có muốn đổi lịch xem sang hôm khác không, KHÔNG trách khách.',
+      },
+    };
+    return mk({
+      stage: 'POST_VIEWING_FOLLOW_UP',
+      action: 'ASK_POST_VIEWING',
+      nextAction: NextAction.ASK_INFO,
+      requiredQuestion: map[post].q,
+      fallbackMessage: map[post].tpl,
+    });
+  }
+
+  // 3) LUỒNG HẸN XEM — khi khách muốn xem phòng.
   const wantViewing =
     intent === CustomerIntent.WANT_VIEWING ||
     (roomsProposedBefore && isInterested(lastCustomerText, intent));

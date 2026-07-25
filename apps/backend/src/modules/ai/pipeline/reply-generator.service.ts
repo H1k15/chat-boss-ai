@@ -30,6 +30,7 @@ export interface ConstrainedInput {
   answerHint?: string;
   maxWords: number;
   rooms?: Record<string, unknown>[];
+  adminTemplates?: string[]; // mẫu câu admin để model bắt chước giọng
 }
 
 // [4] Sinh 2-3 gợi ý câu trả lời — chỉ dùng dữ liệu phòng đã match.
@@ -123,6 +124,9 @@ export class ReplyGeneratorService {
       forbidden_topics: input.forbiddenTopics,
       ...(input.answerHint ? { answer_hint: input.answerHint } : {}),
       ...(input.rooms?.length ? { rooms: input.rooms } : {}),
+      ...(input.adminTemplates?.length
+        ? { admin_templates: input.adminTemplates }
+        : {}),
       max_words: input.maxWords,
     };
     try {
