@@ -49,8 +49,10 @@ export class AiService {
       this.extractor.extract(req.conversation, known),
     ]);
 
-    // [3] Lọc phòng (thuần logic — nguồn sự thật duy nhất về phòng)
-    const matchedRooms = await this.matcher.match(extracted);
+    // [3] Lọc phòng (thuần logic — nguồn sự thật duy nhất về phòng). Nếu khách
+    // hỏi theo khoảng cách, matcher geocode điểm mốc + lọc bán kính (Haversine).
+    const { rooms: matchedRooms, location } =
+      await this.matcher.matchDetailed(extracted);
 
     // [4] Sinh gợi ý, kèm mẫu câu admin cấu hình cho ý định này
     const templates = await this.loadTemplates(intent);
@@ -102,6 +104,8 @@ export class AiService {
       customerStageHint: this.stageHint(intent, extracted),
       safety: { blocked: safe.blocked, reasons: safe.reasons },
       suggestionLogId,
+      // Chỉ trả khi khách thực sự hỏi theo khoảng cách (status !== NONE).
+      ...(location.status !== 'NONE' ? { location } : {}),
     };
   }
 

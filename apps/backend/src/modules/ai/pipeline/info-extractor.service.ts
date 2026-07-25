@@ -8,6 +8,8 @@ import {
   stripNulls,
 } from '../llm/llm-provider.interface';
 import { EXTRACT_SYSTEM, formatConversation } from '../prompts';
+import { detectAreaFromText } from './area-detect';
+import { parseDistanceQuery } from '../../geocode/distance-parser';
 
 /**
  * Regex số điện thoại di động Việt Nam. Chấp nhận dấu cách/chấm phân tách.
@@ -79,8 +81,39 @@ export class InfoExtractorService {
     });
 
     const fromLlm = stripNulls(raw) as ExtractedInfo;
+    // Lưới đỡ: LLM đôi khi bỏ sót khu ("khu Phú Diễn" -> null) hoặc trả về giá
+    // trị RÁC ("3km", "2 triệu"). Loại rác rồi dò khu bằng CODE trên câu khách.
+    const llmArea = this.plausibleArea(fromLlm.area) ? fromLlm.area : undefined;
+    const area = llmArea ?? detectAreaFromText(customerText);
+
+    // Yêu cầu KHOẢNG CÁCH: bóc HOÀN TOÀN bằng code (regex tất định) — model
+    // không tham gia tính/đoán khoảng cách. Việc lọc theo bán kính làm ở matcher.
+    const dq = parseDistanceQuery(customerText);
+    const distance: Partial<ExtractedInfo> = {
+      targetLocation: dq.targetLocation ?? area,
+      radiusKm: dq.radiusKm,
+      maxDistanceKm: dq.maxDistanceKm,
+      distanceRequirement: dq.distanceRequirement,
+      transportMode: dq.transportMode,
+    };
+
     // Merge: thông tin mới không được ghi đè thông tin đã biết bằng rỗng.
-    return this.merge(known, { ...fromLlm, phone: phone ?? known?.phone });
+    return this.merge(known, {
+      ...fromLlm,
+      area,
+      ...distance,
+      phone: phone ?? known?.phone,
+    });
+  }
+
+  /** Loại giá trị "khu vực" rác từ LLM (số/đơn vị: "3km", "2 triệu", "10 phút"). */
+  private plausibleArea(a?: string): boolean {
+    if (!a) return false;
+    const t = a.trim();
+    if (t.length < 2) return false;
+    if (/^\d/.test(t)) return false; // bắt đầu bằng số -> không phải tên khu
+    if (/\d\s*(km|m|phút|phut|triệu|trieu|tr|k)\b/i.test(t)) return false;
+    return true;
   }
 
   private merge(a?: ExtractedInfo, b?: ExtractedInfo): ExtractedInfo {

@@ -231,6 +231,15 @@ model Room {
   note            String?
   furniture       String? // nội thất nguyên văn (cho AI đọc, không tách cột)
 
+  // Toạ độ đã geocode (OpenStreetMap Nominatim) — để lọc phòng theo bán kính
+  // bằng Haversine. Có toạ độ rồi thì KHÔNG gọi lại API. Nguồn 'manual' = nhân
+  // viên ghim tay (ưu tiên hơn geocode tự động).
+  latitude        Float?
+  longitude       Float?
+  geocodedAddress String? // display_name Nominatim trả về
+  geocodedAt      DateTime?
+  geocodeSource   String? // "nominatim" | "manual"
+
   importBatchId String?
   importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
 
