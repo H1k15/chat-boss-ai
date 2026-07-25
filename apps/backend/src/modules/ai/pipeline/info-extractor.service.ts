@@ -10,6 +10,9 @@ import {
 import { EXTRACT_SYSTEM, formatConversation } from '../prompts';
 import { detectAreaFromText } from './area-detect';
 import { parseDistanceQuery } from '../../geocode/distance-parser';
+import { parseBudget } from './budget-parser';
+import { parseMoveIn } from './movein-parser';
+import { parseOccupants } from './occupants-parser';
 
 /**
  * Regex số điện thoại di động Việt Nam. Chấp nhận dấu cách/chấm phân tách.
@@ -97,11 +100,24 @@ export class InfoExtractorService {
       transportMode: dq.transportMode,
     };
 
+    // Ngân sách / thời gian vào / số người: bóc bằng CODE (tất định). Ưu tiên
+    // kết quả code hơn LLM khi bắt được mẫu rõ ràng (bớt phụ thuộc model).
+    const budget = parseBudget(customerText);
+    const movein = parseMoveIn(customerText);
+    const occ = parseOccupants(customerText);
+    const deterministic: Partial<ExtractedInfo> = {
+      budgetMin: budget.budgetMin ?? fromLlm.budgetMin,
+      budgetMax: budget.budgetMax ?? fromLlm.budgetMax,
+      moveInDate: movein.moveInDate ?? fromLlm.moveInDate,
+      peopleCount: occ.occupants ?? fromLlm.peopleCount,
+    };
+
     // Merge: thông tin mới không được ghi đè thông tin đã biết bằng rỗng.
     return this.merge(known, {
       ...fromLlm,
       area,
       ...distance,
+      ...deterministic,
       phone: phone ?? known?.phone,
     });
   }

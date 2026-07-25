@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { MatchedRoom } from '@cba/shared';
+import { deaccent } from '../../../common/vietnamese';
 
 /** Câu hỏi lại an toàn, dùng khi mọi gợi ý đều bị chặn. */
 const FALLBACK_SUGGESTION =
@@ -48,6 +49,67 @@ export class SafetyGuardService {
         ? safeSuggestions
         : [FALLBACK_SUGGESTION],
     };
+  }
+
+  /**
+   * Kiểm tra 1 tin nhắn do orchestrator sinh: ngoài giá/SĐT/mã phòng, còn chặn
+   * (a) hỏi lại slot ĐÃ BIẾT, (b) khan hiếm giả / cam kết giữ phòng-giảm giá.
+   * Không sửa message; ai.service sẽ thay bằng template khi blocked.
+   */
+  checkOrchestrated(
+    message: string,
+    rooms: MatchedRoom[],
+    knownSlots: string[],
+  ): { blocked: boolean; reasons: string[]; safeMessage: string } {
+    const reasons: string[] = [];
+    const allowedAmounts = this.buildAllowedAmounts(rooms);
+    const allowedCodes = new Set(rooms.map((r) => r.roomCode.toUpperCase()));
+
+    const v = this.violation(message, allowedAmounts, allowedCodes);
+    if (v) reasons.push(v);
+    const reask = this.reAsksKnownSlot(message, knownSlots);
+    if (reask) reasons.push(reask);
+    const fake = this.fakeUrgencyOrCommitment(message);
+    if (fake) reasons.push(fake);
+
+    return { blocked: reasons.length > 0, reasons, safeMessage: message };
+  }
+
+  /** Câu trả lời hỏi lại một slot đã biết -> vi phạm (mục XIII.9). */
+  private reAsksKnownSlot(text: string, knownSlots: string[]): string | null {
+    const s = deaccent(text);
+    const patterns: Record<string, RegExp> = {
+      target_location: /khu vuc nao|khu nao|tim quanh khu nao|o khu nao|tuyen duong nao|dia diem nao/,
+      budget: /ngan sach.*bao nhieu|gia.*bao nhieu|tam bao nhieu|bao nhieu.*thang/,
+      move_in_date: /khi nao.*chuyen vao|thoi gian.*chuyen vao|chuyen vao.*khi nao|du kien.*vao khi/,
+      occupants: /bao nhieu nguoi|may nguoi o/,
+    };
+    for (const slot of knownSlots) {
+      if (patterns[slot]?.test(s)) {
+        return `Hỏi lại slot đã biết (${slot}) — chặn`;
+      }
+    }
+    return null;
+  }
+
+  /** Khan hiếm giả / cam kết giữ phòng, giảm giá (mục XIII.7-8). */
+  private fakeUrgencyOrCommitment(text: string): string | null {
+    const s = deaccent(text);
+    if (
+      /nhieu (nguoi|khach) (dang )?(hoi|quan tam|xem|hoi thue)|sap het phong|nhanh keo het|chi con \d+ phong|nhanh tay/.test(
+        s,
+      )
+    ) {
+      return 'Tạo khan hiếm giả — chặn';
+    }
+    if (
+      /giu phong cho|giu cho ban|giam gia cho ban|bot gia cho|khuyen mai rieng|uu dai rieng cho ban/.test(
+        s,
+      )
+    ) {
+      return 'Cam kết giữ phòng/giảm giá — chặn';
+    }
+    return null;
   }
 
   /** Trả về lý do chặn, hoặc null nếu gợi ý an toàn. */

@@ -70,6 +70,18 @@ QUY TẮC BẮT BUỘC:
 - Tối đa 2-3 câu mỗi gợi ý. Đưa 2-3 phương án KHÁC NHAU về cách tiếp cận.`;
 }
 
+// Prompt cho MODEL Ở CHẾ ĐỘ "CHỈ DIỄN ĐẠT" (mục XIV). next_action, câu hỏi,
+// dữ liệu phòng đều do CODE quyết; model chỉ viết thành câu tự nhiên.
+export const CONSTRAINED_REPLY_SYSTEM = `Bạn là bộ máy DIỄN ĐẠT tin nhắn chăm sóc khách thuê phòng (KHÔNG tự quyết định gì).
+
+- CHỈ dùng dữ liệu trong "verified_facts" và "rooms". Không tự thêm/đổi bất kỳ số liệu, giá, phòng, link, địa chỉ, tiện ích nào.
+- Thực hiện ĐÚNG "next_action" và "required_question". KHÔNG tự đổi bước, KHÔNG tự đề xuất phòng ngoài danh sách.
+- KHÔNG hỏi lại thông tin trong "known_slots". Tôn trọng mọi điều trong "forbidden_topics".
+- Nếu có "answer_hint": trả lời ngắn ý đó TRƯỚC, rồi mới thực hiện required_question.
+- KHÔNG tạo cảm giác khan hiếm giả, KHÔNG hứa giữ phòng/giảm giá, KHÔNG viết số điện thoại.
+- Tiếng Việt tự nhiên, lịch sự, chủ động, NGẮN GỌN (không quá max_words từ), tối đa 3 đoạn ngắn.
+- Chỉ trả về NỘI DUNG TIN NHẮN gửi khách, không giải thích nội bộ.`;
+
 /** Định dạng hội thoại thành text cho LLM đọc. Dùng chung cả 3 bước. */
 export function formatConversation(conversation: ConversationTurn[]): string {
   return conversation
