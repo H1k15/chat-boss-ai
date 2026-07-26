@@ -8,6 +8,7 @@ import {
   stripNulls,
 } from '../llm/llm-provider.interface';
 import { EXTRACT_SYSTEM, formatConversation } from '../prompts';
+import { deaccent } from '../../../common/vietnamese';
 import { detectAreaFromText } from './area-detect';
 import { parseDistanceQuery } from '../../geocode/distance-parser';
 import { parseBudget } from './budget-parser';
@@ -86,8 +87,14 @@ export class InfoExtractorService {
     const fromLlm = stripNulls(raw) as ExtractedInfo;
     // Lưới đỡ: LLM đôi khi bỏ sót khu ("khu Phú Diễn" -> null) hoặc trả về giá
     // trị RÁC ("3km", "2 triệu"). Loại rác rồi dò khu bằng CODE trên câu khách.
+    // Ưu tiên khu ở LƯỢT KHÁCH MỚI NHẤT: khách đổi khu ("thôi chuyển qua Mỹ
+    // Đình") -> cập nhật khu mới, KHÔNG giữ khu cũ. Không có khu ở lượt mới thì
+    // mới xét LLM / dò toàn hội thoại.
+    const lastCustomer =
+      [...conversation].reverse().find((t) => t.role === 'customer')?.text ?? '';
+    const lastArea = detectAreaFromText(lastCustomer);
     const llmArea = this.plausibleArea(fromLlm.area) ? fromLlm.area : undefined;
-    const area = llmArea ?? detectAreaFromText(customerText);
+    const area = lastArea ?? llmArea ?? detectAreaFromText(customerText);
 
     // Yêu cầu KHOẢNG CÁCH: bóc HOÀN TOÀN bằng code (regex tất định) — model
     // không tham gia tính/đoán khoảng cách. Việc lọc theo bán kính làm ở matcher.
@@ -109,7 +116,11 @@ export class InfoExtractorService {
       budgetMin: budget.budgetMin ?? fromLlm.budgetMin,
       budgetMax: budget.budgetMax ?? fromLlm.budgetMax,
       moveInDate: movein.moveInDate ?? fromLlm.moveInDate,
-      peopleCount: occ.occupants ?? fromLlm.peopleCount,
+      // LLM hay nhầm "2 củ" (tiền) thành số người -> chỉ nhận số người của LLM
+      // khi câu KHÁCH có dấu hiệu về người ở.
+      peopleCount:
+        occ.occupants ??
+        (this.hasPeopleSignal(customerText) ? fromLlm.peopleCount : undefined),
     };
 
     // Merge: thông tin mới không được ghi đè thông tin đã biết bằng rỗng.
@@ -120,6 +131,13 @@ export class InfoExtractorService {
       ...deterministic,
       phone: phone ?? known?.phone,
     });
+  }
+
+  /** Câu khách có dấu hiệu nói về SỐ NGƯỜI ở (để không nhận nhầm tiền -> người). */
+  private hasPeopleSignal(text: string): boolean {
+    return /nguoi|ban be|\bban\b|vo chong|o ghep|o chung|nhom|dua|thanh vien|mot minh|o mot|gia dinh|con nho|\d\s*(nguoi|ban|dua|em)/.test(
+      deaccent(text),
+    );
   }
 
   /** Loại giá trị "khu vực" rác từ LLM (số/đơn vị: "3km", "2 triệu", "10 phút"). */

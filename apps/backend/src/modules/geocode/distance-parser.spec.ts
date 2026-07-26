@@ -46,6 +46,12 @@ describe('parseDistanceQuery — bóc yêu cầu khoảng cách (không dùng mo
     expect(q.targetLocation).toBe('Times City');
   });
 
+  it('"trong 3 km" -> maxDistanceKm 3, within', () => {
+    const q = parseDistanceQuery('phòng cách chỗ làm trong 3 km thôi');
+    expect(q.maxDistanceKm).toBe(3);
+    expect(q.distanceRequirement).toBe('within');
+  });
+
   it('câu không nói khoảng cách -> none', () => {
     const q = parseDistanceQuery('còn phòng 3 triệu không shop');
     expect(q.distanceRequirement).toBe('none');
