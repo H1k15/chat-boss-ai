@@ -67,6 +67,9 @@ export const TEMPLATES = {
     'Bạn muốn tìm phòng quanh khu vực, tuyến đường hoặc địa điểm nào ạ?',
   ASK_BUDGET:
     'Ngân sách tối đa bạn dự kiến cho tiền phòng mỗi tháng khoảng bao nhiêu ạ?',
+  // Khi khách trả lời mơ hồ ("cũng bình thường") -> hỏi lại CÓ LỰA CHỌN.
+  ASK_BUDGET_OPTIONS:
+    'Ngân sách của bạn khoảng dưới 3 triệu, từ 3–4 triệu hay trên 4 triệu mỗi tháng ạ?',
   ASK_MOVE_IN_DATE:
     'Bạn dự kiến chuyển vào khoảng thời gian nào để mình kiểm tra đúng phòng còn trống nhé?',
   ASK_OCCUPANTS: 'Phòng mình dự kiến ở bao nhiêu người ạ?',
@@ -102,7 +105,11 @@ function detectPostViewing(text: string): PostViewKind | undefined {
   const viewedCtx = /xem phong roi|xem roi|di xem roi|hom qua xem|vua xem|xem ban chieu|da xem/.test(
     s,
   );
-  if (/khong thich|khong ung|khong hop|khong dep|khong vua|te qua|chan qua/.test(s))
+  if (
+    /khong thich|khong ung|khong hop|khong dep|khong vua|te qua|chan qua|chat qua|chat choi|nho qua|nho xiu|xa qua|on ao|on qua|toi qua|am tham|do ban|ban thiu/.test(
+      s,
+    )
+  )
     return 'not_liked';
   if (/dang phan van|con phan van|suy nghi them|chua quyet|de nghi lai|con lan tan/.test(s))
     return 'undecided';
@@ -128,7 +135,11 @@ const FAQ: { re: RegExp; answer: string }[] = [
 // tố cáo lừa đảo.
 export function detectHandoff(text: string): string | undefined {
   const s = deaccent(text);
-  if (/giam gia|bot gia|mac ca|thuong luong gia|gia chot|sale gia/.test(s))
+  if (
+    /giam gia|bot gia|mac ca|thuong luong gia|gia chot|sale gia|bot cho|bot xuong|xin bot|bot \d|giam cho|giam duoc|bot duoc|bot dc/.test(
+      s,
+    )
+  )
     return 'Khách muốn thương lượng giá';
   if (/giu phong cho|giu phong giup|dat coc truoc|coc giu phong/.test(s))
     return 'Khách muốn giữ phòng/đặt cọc';
@@ -145,6 +156,10 @@ function matchFaq(text: string): string | undefined {
   const s = deaccent(text);
   return FAQ.find((f) => f.re.test(s))?.answer;
 }
+
+// Câu gạt khéo khi khách lệch chủ đề (không liên quan phòng).
+const DEFLECT_OFFTOPIC =
+  'Mình hỗ trợ thông tin và lịch xem phòng thôi bạn nhé.';
 
 // Khách thể hiện QUAN TÂM phòng.
 function isInterested(text: string, intent: CustomerIntent): boolean {
@@ -211,7 +226,11 @@ export function decide(input: StageInput): Decision {
   const { profile, matchedCount, intent, lastCustomerText, roomsProposedBefore } =
     input;
   const { known, missing } = knownMissing(profile);
-  const answerHint = matchFaq(lastCustomerText);
+  // Chen ngang: FAQ (phí, cọc...) trả lời ngắn; lệch chủ đề -> gạt khéo. Sau đó
+  // vẫn thực hiện required_question để quay lại quy trình.
+  const answerHint =
+    matchFaq(lastCustomerText) ??
+    (intent === CustomerIntent.IRRELEVANT ? DEFLECT_OFFTOPIC : undefined);
   const baseForbidden = [...CORE_FORBIDDEN, ...noReaskTopics(known)];
 
   const mk = (
@@ -353,12 +372,19 @@ export function decide(input: StageInput): Decision {
     });
   }
   if (!profile.hasBudget) {
+    // Đã hỏi ngân sách 1 lần mà vẫn chưa có (khách trả lời mơ hồ) -> hỏi lại
+    // KÈM LỰA CHỌN cụ thể cho dễ trả lời.
+    const withOptions = profile.askedSlots.includes('budget');
     return mk({
       stage: 'QUALIFYING',
       action: 'ASK_BUDGET',
       nextAction: NextAction.ASK_INFO,
-      requiredQuestion: 'Hỏi ngân sách tối đa cho tiền phòng mỗi tháng.',
-      fallbackMessage: TEMPLATES.ASK_BUDGET,
+      requiredQuestion: withOptions
+        ? 'Hỏi ngân sách CÓ LỰA CHỌN: dưới 3 triệu / 3–4 triệu / trên 4 triệu.'
+        : 'Hỏi ngân sách tối đa cho tiền phòng mỗi tháng.',
+      fallbackMessage: withOptions
+        ? TEMPLATES.ASK_BUDGET_OPTIONS
+        : TEMPLATES.ASK_BUDGET,
     });
   }
   // Có location + budget: lấy move_in nếu chưa có VÀ chưa từng hỏi.

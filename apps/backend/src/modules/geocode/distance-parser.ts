@@ -61,7 +61,7 @@ export function parseDistanceQuery(text: string): DistanceQuery {
 
   // 2) Khoảng cách tối đa: "cách/xa (không quá|tối đa|dưới|trong vòng) N km/m"
   const maxd = t.match(
-    /(?:cach|xa|trong vong|toi da|khong qua|duoi)\s*(?:khong qua\s*|toi da\s*|duoi\s*)?(\d+(?:[.,]\d+)?)\s*(km|m|met)/,
+    /(?:cach|xa|trong vong|trong|toi da|khong qua|duoi)\s*(?:khong qua\s*|toi da\s*|duoi\s*)?(\d+(?:[.,]\d+)?)\s*(km|m|met)/,
   );
   if (maxd) {
     q.maxDistanceKm = toKm(parseFloat(maxd[1].replace(',', '.')), maxd[2]);

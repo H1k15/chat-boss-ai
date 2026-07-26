@@ -131,6 +131,35 @@ describe('decide — state machine + next_action (tất định)', () => {
     expect(d.fallbackMessage).toMatch(/đổi lịch/);
   });
 
+  it('Ngân sách mơ hồ (đã hỏi 1 lần) -> hỏi lại CÓ LỰA CHỌN', () => {
+    const d = run({
+      profile: P({ hasLocation: true, askedSlots: ['budget'] }),
+      lastCustomerText: 'cũng bình thường thôi',
+    });
+    expect(d.action).toBe('ASK_BUDGET');
+    expect(d.fallbackMessage).toMatch(/dưới 3 triệu.*3–4 triệu.*trên 4 triệu/);
+  });
+
+  it('Sau xem - "phòng chật quá" -> not_liked', () => {
+    const d = run({ lastCustomerText: 'xem rồi phòng chật quá' });
+    expect(d.action).toBe('ASK_POST_VIEWING');
+    expect(d.fallbackMessage).toMatch(/giá|vị trí|diện tích|nội thất/);
+  });
+
+  it('Lệch chủ đề (IRRELEVANT) -> answerHint gạt khéo', () => {
+    const d = run({
+      intent: CustomerIntent.IRRELEVANT,
+      lastCustomerText: 'quán ăn gần đó có ngon không',
+    });
+    expect(d.answerHint).toMatch(/hỗ trợ thông tin/);
+    expect(d.action).toBe('ASK_LOCATION_AND_BUDGET');
+  });
+
+  it('Handoff: "bớt cho anh 200k" -> HANDOFF (mặc cả không có chữ "giá")', () => {
+    const d = run({ lastCustomerText: 'phòng đức diễn bớt cho anh 200k được không' });
+    expect(d.action).toBe('HANDOFF');
+  });
+
   it('Chống hỏi lại: đã có khu vực -> không ra ASK_LOCATION', () => {
     const d = run({ profile: P({ hasLocation: true }) });
     expect(d.action).not.toBe('ASK_LOCATION');
