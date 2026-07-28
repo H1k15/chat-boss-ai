@@ -6,7 +6,9 @@ import { apiPost } from '@/lib/api';
 const LAST_EMAIL_KEY = 'lastLoginEmail';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  // Điền THẲNG email làm giá trị thật (sửa được ngay), không để dạng placeholder.
+  // Mặc định là tài khoản admin; nếu có email đăng nhập gần nhất thì ghi đè.
+  const [email, setEmail] = useState('admin@chatboss.ai');
   const [password, setPassword] = useState('');
   const [msg, setMsg] = useState('');
 
@@ -38,12 +40,12 @@ export default function LoginPage() {
       {/* autoComplete="email": cho phép trình duyệt gợi ý email đã dùng. */}
       <input className="w-full border p-2 rounded mb-2" type="email" name="email"
         autoComplete="email" value={email}
-        onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+        onChange={(e) => setEmail(e.target.value)} placeholder="Nhập email" />
       {/* autoComplete="new-password": trình duyệt/trình quản lý mật khẩu KHÔNG
           tự điền hay gợi ý mật khẩu đã lưu cho ô này. */}
       <input className="w-full border p-2 rounded mb-2" type="password" name="password"
         autoComplete="new-password" value={password}
-        onChange={(e) => setPassword(e.target.value)} placeholder="Mật khẩu" />
+        onChange={(e) => setPassword(e.target.value)} placeholder="Nhập mật khẩu" />
       <button className="w-full bg-blue-600 text-white p-2 rounded">Đăng nhập</button>
       <p className="text-sm text-gray-600 mt-2">{msg}</p>
     </form>
