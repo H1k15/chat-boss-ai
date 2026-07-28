@@ -31,7 +31,12 @@ form?.addEventListener('submit', async (e) => {
       return;
     }
     const data = await res.json();
-    await chrome.storage.local.set({ accessToken: data.accessToken });
+    // Lưu CẢ refreshToken để content script tự làm mới accessToken (sống 15p)
+    // khi hết hạn, khỏi bắt nhân viên đăng nhập lại giữa chừng.
+    await chrome.storage.local.set({
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+    });
     msg('Đã đăng nhập: ' + data.user.fullName);
   } catch (err) {
     // Thường gặp: backend chưa chạy, sai API_BASE, hoặc thiếu host_permissions
