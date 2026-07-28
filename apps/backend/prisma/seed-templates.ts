@@ -123,6 +123,12 @@ const TEMPLATES: TemplateSeed[] = [
     content:
       'Dạ hiện bên em còn phòng trống ạ, anh/chị cho em xin khu vực mình muốn tìm để em tư vấn cho sát nha.',
   },
+  {
+    intent: 'ASK_AVAILABILITY',
+    label: 'Còn phòng - xin 3 thông tin (SOP)',
+    content:
+      'Dạ còn nha anh/chị. Mình cho em xin khu vực, ngân sách và khi nào chuyển vào để em lọc đúng phòng gửi mình xem ạ?',
+  },
 
   // Khách hỏi địa chỉ
   {
@@ -230,6 +236,12 @@ const TEMPLATES: TemplateSeed[] = [
     content:
       'Dạ để em xin quay video mới nhất của phòng gửi mình xem cho rõ nha, anh/chị đợi em chút ạ.',
   },
+  {
+    intent: 'ASK_MEDIA',
+    label: 'Ảnh/video - khuyên xem thực tế (SOP)',
+    content:
+      'Dạ được ạ, em gửi ảnh/video để mình xem trước. Thấy ưng thì nên qua xem trực tiếp cho rõ diện tích với ánh sáng nha.',
+  },
 
   // Khách để lại số điện thoại (KHÔNG lặp lại số của khách trong câu)
   {
@@ -299,6 +311,12 @@ const TEMPLATES: TemplateSeed[] = [
     content:
       'Dạ vâng, anh/chị qua xem thoải mái ạ, cứ báo em trước giờ để em chuẩn bị đón mình nha.',
   },
+  {
+    intent: 'WANT_VIEWING',
+    label: 'Hẹn xem - miễn phí không môi giới (SOP)',
+    content:
+      'Dạ phòng khá đúng nhu cầu của mình. Anh/chị rảnh hôm nay hay mai qua xem trực tiếp ạ? Xem miễn phí, không phí môi giới nha.',
+  },
 
   // Chào hỏi
   {
@@ -335,6 +353,12 @@ const TEMPLATES: TemplateSeed[] = [
     label: 'Chào - giọng chị',
     content:
       'Dạ chào em, chị đây! Em đang cần tìm phòng khu nào để chị tư vấn cho sát nhé?',
+  },
+  {
+    intent: 'GREETING',
+    label: 'Chào - xin 3 thông tin (SOP)',
+    content:
+      'Dạ để em tìm phòng đúng nhu cầu, mình gửi em vài thông tin nhé: khu vực muốn ở, ngân sách và khi nào chuyển vào ạ.',
   },
 
   // ============ ĐƠN GIẢN / ÍT DÙNG — 4-5 mẫu ============
