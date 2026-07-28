@@ -70,8 +70,10 @@ async function init(): Promise<void> {
     'user',
     'lastEmail',
   ]);
+  // Điền THẲNG email làm giá trị thật (sửa được ngay), không để dạng placeholder.
+  // Mặc định tài khoản sale; nếu có email đăng nhập gần nhất thì ưu tiên.
   const emailInput = $('email') as HTMLInputElement | null;
-  if (emailInput && lastEmail) emailInput.value = lastEmail as string;
+  if (emailInput) emailInput.value = (lastEmail as string) || 'sale1@chatboss.ai';
   if (accessToken && user) showAccount(user as StoredUser);
   else showLogin();
 }
