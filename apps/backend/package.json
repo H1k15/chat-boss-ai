@@ -14,6 +14,7 @@
     "export:finetune": "dotenv -e ../../.env -- ts-node prisma/export-finetune.ts",
     "analyze:logs": "dotenv -e ../../.env -- ts-node prisma/analyze-logs.ts",
     "verify:tenant": "dotenv -e ../../.env -- ts-node prisma/verify-tenant-isolation.ts",
+    "import:fb": "dotenv -e ../../.env -- ts-node prisma/import-fb-history.ts",
     "prisma": "dotenv -e ../../.env -- prisma"
   },
   "dependencies": {
