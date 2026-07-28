@@ -2,7 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Prisma, RoomStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { deaccent } from '../../common/vietnamese';
-import { currentOrgId } from '../../common/tenant';
+import { appSettingKey, currentOrgId } from '../../common/tenant';
 import { LatLng, isValidLatLng } from './haversine';
 import { parseLatLngFromMapsUrl, extractQueryAddress } from './maps-link';
 
@@ -124,7 +124,9 @@ export class GeocodeService {
 
   private async readMap<T>(key: string): Promise<Record<string, T>> {
     try {
-      const row = await this.prisma.appSetting.findUnique({ where: { key } });
+      const row = await this.prisma.appSetting.findUnique({
+        where: appSettingKey(key),
+      });
       return (row?.value as Record<string, T> | null) ?? {};
     } catch {
       return {};
@@ -139,7 +141,7 @@ export class GeocodeService {
     const map = await this.readMap<unknown>(key);
     map[field] = value;
     await this.prisma.appSetting.upsert({
-      where: { key },
+      where: appSettingKey(key),
       update: { value: map as Prisma.InputJsonObject },
       create: { key, value: map as Prisma.InputJsonObject },
     });
@@ -471,7 +473,7 @@ export class GeocodeService {
     fromAddress: number;
   }> {
     const row = await this.prisma.appSetting.findUnique({
-      where: { key: 'room_media' },
+      where: appSettingKey('room_media'),
     });
     const media =
       (row?.value as Record<string, { location?: string }> | null) ?? {};

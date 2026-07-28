@@ -64,10 +64,24 @@ async function main() {
   );
   check(seenByB.length === 1, 'org B thấy phòng của mình');
 
-  // Dọn dẹp.
+  // AppSetting per-org (Đợt 3): org B đặt cấu hình -> org A KHÔNG thấy.
   await runWithTenant({ organizationId: B }, async () =>
-    prisma.room.deleteMany({ where: { roomCode: 'ISO_ROOM' } }),
+    prisma.appSetting.upsert({
+      where: { organizationId_key: { organizationId: B, key: 'iso_cfg' } },
+      update: { value: { v: 'B' } },
+      create: { key: 'iso_cfg', value: { v: 'B' } },
+    }),
   );
+  const cfgSeenByA = await runWithTenant({ organizationId: A }, async () =>
+    prisma.appSetting.findMany({ where: { key: 'iso_cfg' } }),
+  );
+  check(cfgSeenByA.length === 0, 'org A không thấy cấu hình app_settings của org B');
+
+  // Dọn dẹp.
+  await runWithTenant({ organizationId: B }, async () => {
+    await prisma.room.deleteMany({ where: { roomCode: 'ISO_ROOM' } });
+    await prisma.appSetting.deleteMany({ where: { key: 'iso_cfg' } });
+  });
   await prisma.organization.delete({ where: { id: B } });
   await prisma.$disconnect();
 

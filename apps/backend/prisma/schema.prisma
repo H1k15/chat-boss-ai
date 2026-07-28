@@ -118,6 +118,7 @@ model Organization {
   activityLogs          ActivityLog[]
   replyTemplates        ReplyTemplate[]
   importBatches         ImportBatch[]
+  appSettings           AppSetting[]
 
   @@map("organizations")
 }
@@ -440,12 +441,15 @@ model ImportBatch {
 // Cấu hình chạy runtime dạng key-value (admin sửa qua API, không phải deploy
 // lại). Ví dụ: cấu hình Telegram (chat mặc định, bật/tắt sự kiện). KHÔNG lưu
 // secret ở đây (bot token vẫn ở .env) — bảng này có thể lộ qua API cấu hình.
-// GHI CHÚ multi-tenant: Đợt 3 sẽ đổi khoá thành (organizationId, key); riêng
-// geocode_cache giữ toàn cục.
+// Multi-tenant Đợt 3: cấu hình runtime TÁCH THEO ORG (khoá kép organizationId+key).
+// Kể cả geocode_cache cũng per-org (đồng nhất; chấp nhận geocode lại giữa các org).
 model AppSetting {
-  key       String   @id
-  value     Json
-  updatedAt DateTime @updatedAt
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  key            String
+  value          Json
+  updatedAt      DateTime     @updatedAt
 
+  @@id([organizationId, key])
   @@map("app_settings")
 }

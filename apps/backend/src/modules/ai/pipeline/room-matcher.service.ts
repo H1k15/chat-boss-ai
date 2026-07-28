@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Room, RoomStatus } from '@prisma/client';
+import { appSettingKey } from '../../../common/tenant';
 import {
   AreaRelation,
   ExtractedInfo,
@@ -255,7 +256,7 @@ export class RoomMatcherService {
   private async loadLandmarks(): Promise<Landmark[]> {
     try {
       const row = await this.prisma.appSetting.findUnique({
-        where: { key: 'landmarks' },
+        where: appSettingKey('landmarks'),
       });
       const v = row?.value as unknown;
       const isLandmark = (l: unknown): l is Landmark => {
@@ -306,7 +307,7 @@ export class RoomMatcherService {
   private async loadAreaGroups(): Promise<string[][]> {
     try {
       const row = await this.prisma.appSetting.findUnique({
-        where: { key: 'area_groups' },
+        where: appSettingKey('area_groups'),
       });
       const v = row?.value;
       if (

@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { appSettingKey } from '../../common/tenant';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   DEFAULT_LANDMARKS,
@@ -21,7 +22,7 @@ export class AiConfigService {
 
   async getLandmarks(): Promise<{ landmarks: Landmark[]; custom: boolean }> {
     const row = await this.prisma.appSetting.findUnique({
-      where: { key: LANDMARKS_KEY },
+      where: appSettingKey(LANDMARKS_KEY),
     });
     const v = row?.value as unknown;
     if (this.isLandmarkArray(v)) return { landmarks: v, custom: true };
@@ -53,7 +54,7 @@ export class AiConfigService {
 
   async getAreaGroups(): Promise<{ groups: string[][]; custom: boolean }> {
     const row = await this.prisma.appSetting.findUnique({
-      where: { key: AREA_GROUPS_KEY },
+      where: appSettingKey(AREA_GROUPS_KEY),
     });
     const v = row?.value as unknown;
     if (this.isStringMatrix(v)) return { groups: v, custom: true };
@@ -104,7 +105,7 @@ export class AiConfigService {
   private upsert(key: string, value: unknown): Promise<unknown> {
     const data = value as Prisma.InputJsonValue;
     return this.prisma.appSetting.upsert({
-      where: { key },
+      where: appSettingKey(key),
       update: { value: data },
       create: { key, value: data },
     });
@@ -112,7 +113,7 @@ export class AiConfigService {
 
   private async remove(key: string): Promise<{ ok: boolean }> {
     await this.prisma.appSetting
-      .delete({ where: { key } })
+      .delete({ where: appSettingKey(key) })
       .catch(() => undefined); // chưa có override thì thôi
     return { ok: true };
   }
