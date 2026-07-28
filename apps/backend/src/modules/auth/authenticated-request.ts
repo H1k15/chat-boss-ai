@@ -6,6 +6,7 @@ export interface AuthUser {
   userId: string;
   role: UserRole;
   email: string;
+  organizationId?: string; // org của người dùng (multi-tenant). Đợt 2.
 }
 
 /** Request đã qua JwtAuthGuard — luôn có `user`. */

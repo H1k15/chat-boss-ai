@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
@@ -20,6 +20,7 @@ import { ExtensionModule } from './modules/extension/extension.module';
 import { ReplyTemplatesModule } from './modules/reply-templates/reply-templates.module';
 import { SheetsModule } from './modules/sheets/sheets.module';
 import { AiConfigModule } from './modules/ai-config/ai-config.module';
+import { TenantContextInterceptor } from './common/tenant-context.interceptor';
 
 @Module({
   imports: [
@@ -51,6 +52,8 @@ import { AiConfigModule } from './modules/ai-config/ai-config.module';
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    // Chạy SAU guard (req.user đã có) -> đặt tenant context cho toàn request.
+    { provide: APP_INTERCEPTOR, useClass: TenantContextInterceptor },
   ],
 })
 export class AppModule {}

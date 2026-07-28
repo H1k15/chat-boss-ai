@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as XLSX from 'xlsx';
 import { Prisma, RoomStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DEFAULT_ORG_ID } from '../../common/tenant';
+import { currentOrgId } from '../../common/tenant';
 import { normalizeKey } from '../../common/vietnamese';
 
 // Header + 1 dòng mẫu cho file template tải về. Header dùng đúng tên có dấu để
@@ -203,7 +203,7 @@ export class ExcelService {
         await this.prisma.room.upsert({
           where: {
             organizationId_roomCode: {
-              organizationId: DEFAULT_ORG_ID,
+              organizationId: currentOrgId(),
               roomCode: data.roomCode,
             },
           },
