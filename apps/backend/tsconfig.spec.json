@@ -1,0 +1,9 @@
+{
+  // Chỉ dùng cho test (ts-jest). Bật isolatedModules để ts-jest transpile thuần,
+  // không typecheck lại từng file -> test nhanh + jest worker thoát sạch. Việc
+  // typecheck vẫn do `pnpm typecheck` (tsc --noEmit) đảm nhiệm riêng.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "isolatedModules": true
+  }
+}
