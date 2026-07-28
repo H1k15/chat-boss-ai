@@ -63,11 +63,15 @@ function showLogin(): void {
 }
 
 // Khởi tạo: đã đăng nhập -> hiện thẻ tài khoản; chưa -> form đăng nhập.
+// Gợi ý email gần nhất (lưu ở lastEmail). KHÔNG gợi ý/tự điền mật khẩu.
 async function init(): Promise<void> {
-  const { accessToken, user } = await chrome.storage.local.get([
+  const { accessToken, user, lastEmail } = await chrome.storage.local.get([
     'accessToken',
     'user',
+    'lastEmail',
   ]);
+  const emailInput = $('email') as HTMLInputElement | null;
+  if (emailInput && lastEmail) emailInput.value = lastEmail as string;
   if (accessToken && user) showAccount(user as StoredUser);
   else showLogin();
 }
@@ -107,6 +111,7 @@ form?.addEventListener('submit', async (e) => {
       accessToken: data.accessToken,
       refreshToken: data.refreshToken,
       user: data.user,
+      lastEmail: email, // nhớ email cho lần đăng nhập sau
     });
     toast('Đăng nhập thành công');
     // Cho bong bóng hiện một nhịp rồi mới chuyển sang thẻ tài khoản (mượt hơn).
