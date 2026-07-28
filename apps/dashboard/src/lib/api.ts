@@ -13,6 +13,18 @@ export function logout(): void {
   window.location.href = '/login';
 }
 
+/** Vai trò của người đang đăng nhập, đọc từ payload JWT (chỉ client). */
+export function getRole(): string | null {
+  const t = getToken();
+  if (!t) return null;
+  try {
+    const b64 = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return (JSON.parse(atob(b64)).role as string) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function authHeaders(json = true): Record<string, string> {
   const t = getToken();
   return {
