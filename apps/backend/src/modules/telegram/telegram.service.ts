@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import TelegramBot from 'node-telegram-bot-api';
 import { Prisma } from '@prisma/client';
 import { NotifyEvent, TelegramConfig, TelegramConfigView } from '@cba/shared';
-import { currentOrgId } from '../../common/tenant';
+import { appSettingKey, currentOrgId } from '../../common/tenant';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const SETTING_KEY = 'telegram';
@@ -30,7 +30,7 @@ export class TelegramService {
   /** Đọc cấu hình runtime (merge với mặc định). */
   async getConfig(): Promise<TelegramConfig> {
     const row = await this.prisma.appSetting.findUnique({
-      where: { key: SETTING_KEY },
+      where: appSettingKey(SETTING_KEY),
     });
     const stored = (row?.value as Partial<TelegramConfig> | null) ?? {};
     return {
@@ -57,7 +57,7 @@ export class TelegramService {
       events: { ...current.events, ...(patch.events ?? {}) },
     };
     await this.prisma.appSetting.upsert({
-      where: { key: SETTING_KEY },
+      where: appSettingKey(SETTING_KEY),
       update: { value: next as unknown as Prisma.InputJsonObject },
       create: {
         key: SETTING_KEY,

@@ -50,10 +50,16 @@ describe('applyTenantScope — cách ly tenant', () => {
     expect(rec(p.args!.where).organizationId).toBe('org1');
   });
 
-  it('bỏ qua model toàn cục (AppSetting, Organization)', () => {
-    const p: Params = { model: 'AppSetting', action: 'findMany', args: { where: {} } };
+  it('bỏ qua model toàn cục Organization (không gắn org)', () => {
+    const p: Params = { model: 'Organization', action: 'findMany', args: { where: {} } };
     applyTenantScope(p, 'org1');
     expect(rec(p.args!.where).organizationId).toBeUndefined();
+  });
+
+  it('AppSetting (Đợt 3) nay ĐƯỢC scope theo org', () => {
+    const p: Params = { model: 'AppSetting', action: 'findMany', args: { where: { key: 'landmarks' } } };
+    applyTenantScope(p, 'org1');
+    expect(rec(p.args!.where).organizationId).toBe('org1');
   });
 
   it('args rỗng: vẫn tạo where có org', () => {

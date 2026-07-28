@@ -11,7 +11,7 @@ import { existsSync } from 'fs';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { resolve } from 'path';
 import { google, sheets_v4 } from 'googleapis';
-import { currentOrgId } from '../../common/tenant';
+import { appSettingKey, currentOrgId } from '../../common/tenant';
 import { Prisma, RoomStatus } from '@prisma/client';
 import { ExcelService, ImportResult } from '../excel/excel.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -332,7 +332,7 @@ export class SheetsService implements OnModuleInit, OnModuleDestroy {
     headerRow: number;
   }): Promise<void> {
     await this.prisma.appSetting.upsert({
-      where: { key: 'sheet_rooms' },
+      where: appSettingKey('sheet_rooms'),
       update: { value: cfg as unknown as Prisma.InputJsonObject },
       create: { key: 'sheet_rooms', value: cfg as unknown as Prisma.InputJsonObject },
     });
@@ -345,7 +345,7 @@ export class SheetsService implements OnModuleInit, OnModuleDestroy {
     headerRow: number;
   } | null> {
     const row = await this.prisma.appSetting.findUnique({
-      where: { key: 'sheet_rooms' },
+      where: appSettingKey('sheet_rooms'),
     });
     return (row?.value as { spreadsheetId: string; sheetName?: string; headerRow: number } | null) ?? null;
   }
@@ -357,7 +357,7 @@ export class SheetsService implements OnModuleInit, OnModuleDestroy {
     media: Record<string, { demo?: string; real?: string; location?: string }>,
   ): Promise<void> {
     await this.prisma.appSetting.upsert({
-      where: { key: 'room_media' },
+      where: appSettingKey('room_media'),
       update: { value: media as unknown as Prisma.InputJsonObject },
       create: {
         key: 'room_media',
@@ -371,7 +371,7 @@ export class SheetsService implements OnModuleInit, OnModuleDestroy {
     Record<string, { demo?: string; real?: string; location?: string }>
   > {
     const row = await this.prisma.appSetting.findUnique({
-      where: { key: 'room_media' },
+      where: appSettingKey('room_media'),
     });
     return (
       (row?.value as Record<
@@ -385,7 +385,7 @@ export class SheetsService implements OnModuleInit, OnModuleDestroy {
   // AppSetting để KHÔNG bị đồng bộ ghi đè. Không cần đổi schema (tránh migrate).
   private async getTypeOverrides(): Promise<Record<string, string>> {
     const row = await this.prisma.appSetting.findUnique({
-      where: { key: 'room_type_overrides' },
+      where: appSettingKey('room_type_overrides'),
     });
     return (row?.value as Record<string, string> | null) ?? {};
   }
@@ -410,7 +410,7 @@ export class SheetsService implements OnModuleInit, OnModuleDestroy {
     if (t) overrides[room.roomCode] = t;
     else delete overrides[room.roomCode]; // xoá gán tay -> về tự động
     await this.prisma.appSetting.upsert({
-      where: { key: 'room_type_overrides' },
+      where: appSettingKey('room_type_overrides'),
       update: { value: overrides as unknown as Prisma.InputJsonObject },
       create: {
         key: 'room_type_overrides',

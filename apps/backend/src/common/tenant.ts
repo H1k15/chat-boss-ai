@@ -12,3 +12,11 @@ export const DEFAULT_ORG_ID = 'org_seed_default';
 export function currentOrgId(): string {
   return getOrgId() ?? DEFAULT_ORG_ID;
 }
+
+/**
+ * where cho AppSetting (khoá kép organizationId+key) theo org hiện tại. Dùng cho
+ * findUnique/upsert cấu hình per-org: prisma.appSetting.findUnique({ where: appSettingKey('landmarks') }).
+ */
+export function appSettingKey(key: string) {
+  return { organizationId_key: { organizationId: currentOrgId(), key } };
+}

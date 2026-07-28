@@ -2,23 +2,29 @@ import { AiConfigService } from './ai-config.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DEFAULT_LANDMARKS } from '../ai/pipeline/landmarks';
 
+// Khoá AppSetting nay là kép (organizationId_key). Rút 'key' cho khớp fake store.
+type SettingWhere = { key?: string; organizationId_key?: { key: string } };
+const keyOf = (w: SettingWhere): string => w.organizationId_key?.key ?? w.key ?? '';
+
 function fakePrisma(stored: Record<string, unknown> = {}): PrismaService {
   return {
     appSetting: {
-      findUnique: async ({ where: { key } }: { where: { key: string } }) =>
-        key in stored ? { key, value: stored[key] } : null,
+      findUnique: async ({ where }: { where: SettingWhere }) => {
+        const key = keyOf(where);
+        return key in stored ? { key, value: stored[key] } : null;
+      },
       upsert: async ({
-        where: { key },
+        where,
         update,
       }: {
-        where: { key: string };
+        where: SettingWhere;
         update: { value: unknown };
       }) => {
-        stored[key] = update.value;
+        stored[keyOf(where)] = update.value;
         return {};
       },
-      delete: async ({ where: { key } }: { where: { key: string } }) => {
-        delete stored[key];
+      delete: async ({ where }: { where: SettingWhere }) => {
+        delete stored[keyOf(where)];
         return {};
       },
     },

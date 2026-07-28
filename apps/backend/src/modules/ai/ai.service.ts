@@ -10,6 +10,7 @@ import {
   NotifyEvent,
 } from '@cba/shared';
 import { Customer, Prisma } from '@prisma/client';
+import { appSettingKey } from '../../common/tenant';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IntentClassifierService } from './pipeline/intent-classifier.service';
 import { InfoExtractorService } from './pipeline/info-extractor.service';
@@ -288,7 +289,7 @@ export class AiService {
     let map: MediaMap;
     try {
       const row = await this.prisma.appSetting.findUnique({
-        where: { key: 'room_media' },
+        where: appSettingKey('room_media'),
       });
       map = (row?.value as MediaMap | null) ?? {};
     } catch {
