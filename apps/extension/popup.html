@@ -4,21 +4,171 @@
     <meta charset="UTF-8" />
     <title>Chat Boss AI</title>
     <style>
-      body { font-family: system-ui, sans-serif; width: 260px; padding: 12px; }
-      h3 { margin: 0 0 8px; }
-      input { width: 100%; margin: 4px 0; padding: 6px; box-sizing: border-box; }
-      button { width: 100%; padding: 8px; background: #1877f2; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
-      #msg { font-size: 12px; color: #333; margin-top: 8px; }
+      :root {
+        --blue: #1877f2;
+        --ink: #1a202c;
+        --muted: #64748b;
+        --border: #e6e8eb;
+        --green: #16a34a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        width: 288px;
+        margin: 0;
+        color: var(--ink);
+        background: #fff;
+      }
+      .head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .head .logo { font-size: 22px; line-height: 1; }
+      .head .title { font-weight: 700; font-size: 15px; }
+      .head .sub { font-size: 11px; color: var(--muted); }
+
+      .body { padding: 16px; }
+      label {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin: 10px 0 4px;
+      }
+      input {
+        width: 100%;
+        padding: 9px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 13px;
+        outline: none;
+      }
+      input:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.15);
+      }
+      button.primary {
+        width: 100%;
+        margin-top: 14px;
+        padding: 10px;
+        background: var(--blue);
+        color: #fff;
+        border: 0;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      button.primary:hover { background: #166fe0; }
+      button.primary:disabled { opacity: 0.6; cursor: default; }
+      .err { color: #dc2626; font-size: 12px; margin-top: 8px; min-height: 15px; }
+
+      /* Thẻ tài khoản sau khi đăng nhập */
+      #account-view { padding: 16px; }
+      .acct { display: flex; align-items: center; gap: 12px; }
+      .avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        background: var(--blue);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 17px;
+        flex-shrink: 0;
+      }
+      .acct .name { font-weight: 600; font-size: 14px; }
+      .acct .email { font-size: 12px; color: var(--muted); }
+      .chip {
+        display: inline-block;
+        margin-top: 6px;
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #eef2ff;
+        color: #3730a3;
+      }
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--green);
+        margin: 16px 0;
+      }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+      button.ghost {
+        width: 100%;
+        padding: 9px;
+        background: #fff;
+        color: #dc2626;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      button.ghost:hover { background: #fef2f2; border-color: #fecaca; }
+      .hidden { display: none !important; }
+
+      /* Bong bóng thông báo */
+      #toast {
+        position: fixed;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%) translateY(-16px);
+        background: var(--green);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 8px 14px;
+        border-radius: 999px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s, transform 0.25s;
+        white-space: nowrap;
+        z-index: 10;
+      }
+      #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     </style>
   </head>
   <body>
-    <h3>🏠 Chat Boss AI</h3>
-    <form id="login">
-      <input id="email" type="email" placeholder="Email" value="sale1@chatboss.ai" />
-      <input id="password" type="password" placeholder="Mật khẩu" />
-      <button type="submit">Đăng nhập</button>
+    <div id="toast"></div>
+
+    <div class="head">
+      <span class="logo">🏠</span>
+      <div>
+        <div class="title">Chat Boss AI</div>
+        <div class="sub">Trợ lý tư vấn phòng trọ</div>
+      </div>
+    </div>
+
+    <form id="login-view" class="body">
+      <label for="email">Email</label>
+      <input id="email" type="email" placeholder="email@chatboss.ai" value="sale1@chatboss.ai" />
+      <label for="password">Mật khẩu</label>
+      <input id="password" type="password" placeholder="••••••••" />
+      <button type="submit" class="primary" id="login-btn">Đăng nhập</button>
+      <div id="err" class="err"></div>
     </form>
-    <div id="msg"></div>
+
+    <div id="account-view" class="hidden">
+      <div class="acct">
+        <div class="avatar" id="avatar">?</div>
+        <div>
+          <div class="name" id="acct-name">—</div>
+          <div class="email" id="acct-email">—</div>
+          <span class="chip" id="acct-role">—</span>
+        </div>
+      </div>
+      <div class="status"><span class="dot"></span> Đang hoạt động</div>
+      <button class="ghost" id="logout-btn">Đăng xuất</button>
+    </div>
+
     <script type="module" src="popup.js"></script>
   </body>
 </html>
