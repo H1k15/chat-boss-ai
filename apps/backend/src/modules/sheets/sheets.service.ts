@@ -11,7 +11,7 @@ import { existsSync } from 'fs';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { resolve } from 'path';
 import { google, sheets_v4 } from 'googleapis';
-import { DEFAULT_ORG_ID } from '../../common/tenant';
+import { currentOrgId } from '../../common/tenant';
 import { Prisma, RoomStatus } from '@prisma/client';
 import { ExcelService, ImportResult } from '../excel/excel.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -673,7 +673,7 @@ export class SheetsService implements OnModuleInit, OnModuleDestroy {
       await this.prisma.room.upsert({
         where: {
           organizationId_roomCode: {
-            organizationId: DEFAULT_ORG_ID,
+            organizationId: currentOrgId(),
             roomCode: data.roomCode,
           },
         },

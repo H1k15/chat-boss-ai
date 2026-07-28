@@ -20,7 +20,12 @@ export class AuthService {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Sai tài khoản hoặc mật khẩu');
 
-    const payload = { sub: user.id, role: user.role, email: user.email };
+    const payload = {
+      sub: user.id,
+      role: user.role,
+      email: user.email,
+      organizationId: user.organizationId,
+    };
     return {
       accessToken: this.jwt.sign(payload, {
         secret: process.env.JWT_ACCESS_SECRET,
@@ -60,7 +65,12 @@ export class AuthService {
       });
       return {
         accessToken: this.jwt.sign(
-          { sub: payload.sub, role: payload.role, email: payload.email },
+          {
+            sub: payload.sub,
+            role: payload.role,
+            email: payload.email,
+            organizationId: payload.organizationId,
+          },
           {
             secret: process.env.JWT_ACCESS_SECRET,
             expiresIn: process.env.JWT_ACCESS_TTL || '15m',

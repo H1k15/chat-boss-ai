@@ -2,7 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Prisma, RoomStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { deaccent } from '../../common/vietnamese';
-import { DEFAULT_ORG_ID } from '../../common/tenant';
+import { currentOrgId } from '../../common/tenant';
 import { LatLng, isValidLatLng } from './haversine';
 import { parseLatLngFromMapsUrl, extractQueryAddress } from './maps-link';
 
@@ -333,7 +333,7 @@ export class GeocodeService {
   ): Promise<void> {
     await this.prisma.room.update({
       where: {
-        organizationId_roomCode: { organizationId: DEFAULT_ORG_ID, roomCode },
+        organizationId_roomCode: { organizationId: currentOrgId(), roomCode },
       },
       data: {
         latitude: p.lat,
