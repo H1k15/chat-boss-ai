@@ -5,15 +5,31 @@ import { setActiveSuggestion, markInserted } from './feedback';
 // Sidebar hiển thị gợi ý AI + phòng phù hợp + nút thao tác.
 // Nhân viên chọn gợi ý -> chèn vào ô soạn -> tự bấm gửi (human-in-the-loop).
 let root: HTMLElement | null = null;
+let launcher: HTMLElement | null = null;
+
+// Trạng thái panel (vị trí + thu gọn + ẩn) lưu trong chrome.storage.local để
+// nhớ qua các lần tải lại trang. Nhân viên kéo panel ra chỗ không che nội dung
+// FB một lần là xong, lần sau vẫn ở đó.
+const STATE_KEY = 'cbaPanelState';
+interface PanelState {
+  left?: number;
+  top?: number;
+  collapsed?: boolean;
+  hidden?: boolean;
+}
 
 export function mountSidebar(): HTMLElement {
   if (root) return root;
   root = document.createElement('div');
   root.id = 'cba-sidebar';
   root.innerHTML = `
-    <div class="cba-header">
-      <span>🏠 Chat Boss AI</span>
-      <button id="cba-refresh" title="Lấy gợi ý">Gợi ý trả lời</button>
+    <div class="cba-header" id="cba-drag">
+      <span class="cba-title">🏠 Chat Boss AI</span>
+      <div class="cba-ctrls">
+        <button id="cba-refresh" title="Lấy gợi ý">Gợi ý trả lời</button>
+        <button id="cba-min" class="cba-icon" title="Thu gọn/mở rộng">–</button>
+        <button id="cba-hide" class="cba-icon" title="Ẩn (thu về nút tròn)">✕</button>
+      </div>
     </div>
     <div id="cba-body" class="cba-body">
       <div class="cba-hint">Mở một hội thoại rồi bấm "Gợi ý trả lời".</div>
@@ -23,7 +39,157 @@ export function mountSidebar(): HTMLElement {
       <button id="cba-appoint">Tạo lịch hẹn</button>
     </div>`;
   document.body.appendChild(root);
+
+  const header = root.querySelector<HTMLElement>('.cba-header');
+  if (header) enableDrag(root, header);
+  document.getElementById('cba-min')?.addEventListener('click', toggleCollapse);
+  document
+    .getElementById('cba-hide')
+    ?.addEventListener('click', () => setHidden(true));
+
+  void restorePanelState();
   return root;
+}
+
+// ---- Ẩn / thu gọn ----------------------------------------------------------
+
+// Nút tròn nổi để mở lại panel khi đã ẩn hẳn (nằm góc dưới phải).
+function mountLauncher(): HTMLElement {
+  if (launcher) return launcher;
+  launcher = document.createElement('button');
+  launcher.id = 'cba-launcher';
+  launcher.title = 'Mở lại Chat Boss AI';
+  launcher.textContent = '🏠';
+  launcher.style.display = 'none';
+  launcher.addEventListener('click', () => setHidden(false));
+  document.body.appendChild(launcher);
+  return launcher;
+}
+
+function setHidden(hidden: boolean): void {
+  if (!root) return;
+  root.classList.toggle('cba-hidden', hidden);
+  const btn = mountLauncher();
+  btn.style.display = hidden ? 'flex' : 'none';
+  savePanelState();
+}
+
+function toggleCollapse(): void {
+  if (!root) return;
+  root.classList.toggle('cba-collapsed');
+  const min = document.getElementById('cba-min');
+  if (min)
+    min.textContent = root.classList.contains('cba-collapsed') ? '▢' : '–';
+  savePanelState();
+}
+
+// ---- Kéo di chuyển ---------------------------------------------------------
+
+function enableDrag(panel: HTMLElement, handle: HTMLElement): void {
+  let startX = 0;
+  let startY = 0;
+  let originX = 0;
+  let originY = 0;
+  let dragging = false;
+
+  handle.addEventListener('pointerdown', (e) => {
+    // Bấm vào nút (gợi ý/thu gọn/ẩn) thì KHÔNG kéo — để nút hoạt động bình thường.
+    if ((e.target as HTMLElement).closest('button')) return;
+    const r = panel.getBoundingClientRect();
+    // Chuyển sang định vị theo left/top (bỏ neo phải) để kéo tự do.
+    panel.style.left = `${r.left}px`;
+    panel.style.top = `${r.top}px`;
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+    startX = e.clientX;
+    startY = e.clientY;
+    originX = r.left;
+    originY = r.top;
+    dragging = true;
+    panel.classList.add('cba-dragging');
+    handle.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  handle.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const w = panel.offsetWidth;
+    const nx = clamp(
+      originX + (e.clientX - startX),
+      0,
+      Math.max(0, window.innerWidth - w),
+    );
+    const ny = clamp(
+      originY + (e.clientY - startY),
+      0,
+      Math.max(0, window.innerHeight - 32), // chừa header luôn với tới được
+    );
+    panel.style.left = `${nx}px`;
+    panel.style.top = `${ny}px`;
+  });
+
+  const end = (e: PointerEvent): void => {
+    if (!dragging) return;
+    dragging = false;
+    panel.classList.remove('cba-dragging');
+    try {
+      handle.releasePointerCapture(e.pointerId);
+    } catch {
+      /* con trỏ đã nhả */
+    }
+    savePanelState();
+  };
+  handle.addEventListener('pointerup', end);
+  handle.addEventListener('pointercancel', end);
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(Math.max(v, lo), hi);
+}
+
+// ---- Lưu / khôi phục trạng thái -------------------------------------------
+
+function savePanelState(): void {
+  if (!root) return;
+  const st: PanelState = {
+    collapsed: root.classList.contains('cba-collapsed'),
+    hidden: root.classList.contains('cba-hidden'),
+  };
+  // Chỉ lưu toạ độ khi đã kéo (đang neo theo left thay vì right mặc định).
+  if (root.style.left && root.style.right === 'auto') {
+    st.left = parseInt(root.style.left, 10);
+    st.top = parseInt(root.style.top, 10);
+  }
+  try {
+    void chrome.storage.local.set({ [STATE_KEY]: st });
+  } catch {
+    /* ngoài context extension (test) -> bỏ qua */
+  }
+}
+
+async function restorePanelState(): Promise<void> {
+  if (!root) return;
+  let st: PanelState | undefined;
+  try {
+    const got = await chrome.storage.local.get(STATE_KEY);
+    st = got[STATE_KEY] as PanelState | undefined;
+  } catch {
+    return;
+  }
+  if (!st) return;
+  if (typeof st.left === 'number' && typeof st.top === 'number') {
+    // Kẹp lại trong màn hình phòng khi cửa sổ nhỏ hơn lần lưu trước.
+    root.style.left = `${clamp(st.left, 0, Math.max(0, window.innerWidth - 60))}px`;
+    root.style.top = `${clamp(st.top, 0, Math.max(0, window.innerHeight - 32))}px`;
+    root.style.right = 'auto';
+    root.style.bottom = 'auto';
+  }
+  if (st.collapsed) {
+    root.classList.add('cba-collapsed');
+    const min = document.getElementById('cba-min');
+    if (min) min.textContent = '▢';
+  }
+  if (st.hidden) setHidden(true);
 }
 
 export function renderSuggestions(res: AiSuggestResponse) {

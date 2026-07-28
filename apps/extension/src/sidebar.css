@@ -18,10 +18,25 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   padding: 10px 12px;
   background: #1877f2;
   color: #fff;
   border-radius: 12px 12px 0 0;
+  cursor: move; /* header = tay kéo di chuyển */
+  user-select: none;
+  touch-action: none; /* để pointer kéo mượt, không cuộn trang */
+}
+#cba-sidebar .cba-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#cba-sidebar .cba-ctrls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 #cba-sidebar .cba-header button {
   background: #fff;
@@ -31,6 +46,46 @@
   border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
+}
+#cba-sidebar .cba-icon {
+  padding: 4px 7px;
+  line-height: 1;
+  font-size: 14px;
+}
+/* Thu gọn: chỉ còn thanh tiêu đề (ẩn nội dung + nút thao tác). */
+#cba-sidebar.cba-collapsed .cba-body,
+#cba-sidebar.cba-collapsed .cba-actions {
+  display: none;
+}
+#cba-sidebar.cba-collapsed .cba-header {
+  border-radius: 12px;
+}
+/* Ẩn hẳn: panel biến mất, mở lại bằng nút tròn nổi. */
+#cba-sidebar.cba-hidden {
+  display: none;
+}
+#cba-sidebar.cba-dragging {
+  user-select: none;
+  opacity: 0.92;
+}
+/* Nút tròn nổi để mở lại panel sau khi ẩn. */
+#cba-launcher {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 0;
+  background: #1877f2;
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+  z-index: 999999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  display: none;
+  align-items: center;
+  justify-content: center;
 }
 #cba-sidebar .cba-body { padding: 12px; }
 #cba-sidebar h4 { margin: 12px 0 6px; font-size: 12px; color: #4a5568; }
