@@ -10,8 +10,8 @@ async function main() {
   // Org mặc định (idempotent — migration cũng đã chèn sẵn).
   await prisma.organization.upsert({
     where: { id: ORG_ID },
-    update: {},
-    create: { id: ORG_ID, name: 'Nhà trọ mặc định', slug: 'default' },
+    update: { plan: 'unlimited' },
+    create: { id: ORG_ID, name: 'Nhà trọ mặc định', slug: 'default', plan: 'unlimited' },
   });
 
   // Super-admin (chủ SaaS) — quản lý mọi nhà trọ. Thuộc org mặc định nhưng bỏ

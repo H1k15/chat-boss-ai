@@ -7,6 +7,8 @@ import { UserRole } from '@cba/shared';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { deaccent } from '../../common/vietnamese';
+import { PLAN_KEYS } from '../../common/plans';
+import { LimitsService } from '../billing/limits.service';
 
 export interface CreateOrgInput {
   name: string;
@@ -30,7 +32,19 @@ function slugify(s: string): string {
 // khi tạo/đếm dữ liệu của một org cụ thể.
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly limits: LimitsService,
+  ) {}
+
+  /** Đổi gói dịch vụ của một nhà trọ. */
+  async setPlan(id: string, plan: string) {
+    if (!PLAN_KEYS.includes(plan))
+      throw new BadRequestException(`Gói không hợp lệ (chọn: ${PLAN_KEYS.join(', ')})`);
+    if (!(await this.prisma.organization.findUnique({ where: { id } })))
+      throw new NotFoundException('Không tìm thấy nhà trọ');
+    return this.prisma.organization.update({ where: { id }, data: { plan } });
+  }
 
   /** Tạo nhà trọ mới + tài khoản ADMIN đầu tiên của nó. */
   async createOrganization(input: CreateOrgInput) {
@@ -91,6 +105,7 @@ export class AdminService {
   ) {
     if (!(await this.prisma.organization.findUnique({ where: { id: orgId } })))
       throw new NotFoundException('Không tìm thấy nhà trọ');
+    await this.limits.assertCanAddUser(orgId); // chặn nếu vượt trần gói
     const email = input.email?.trim().toLowerCase();
     if (!email || !input.password)
       throw new BadRequestException('Thiếu email/mật khẩu');
