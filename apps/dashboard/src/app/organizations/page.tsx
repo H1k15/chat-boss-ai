@@ -67,6 +67,15 @@ export default function OrganizationsPage() {
     }
   }
 
+  async function changePlan(o: Org, plan: string) {
+    try {
+      await apiPatch(`/admin/organizations/${o.id}/plan`, { plan });
+      await load();
+    } catch (e) {
+      setMsg('Lỗi đổi gói: ' + String(e));
+    }
+  }
+
   if (allowed === false)
     return <p className="text-red-600">Chỉ super-admin mới xem được trang này.</p>;
 
@@ -138,7 +147,17 @@ export default function OrganizationsPage() {
                     <div className="font-medium">{o.name}</div>
                     <div className="text-xs text-gray-400">{o.slug}</div>
                   </td>
-                  <td className="p-3">{o.plan}</td>
+                  <td className="p-3">
+                    <select
+                      className="border rounded px-2 py-1 text-sm"
+                      value={o.plan}
+                      onChange={(e) => changePlan(o, e.target.value)}
+                    >
+                      <option value="free">Miễn phí</option>
+                      <option value="pro">Chuyên nghiệp</option>
+                      <option value="unlimited">Không giới hạn</option>
+                    </select>
+                  </td>
                   <td className="p-3">{o.counts.users}</td>
                   <td className="p-3">{o.counts.rooms}</td>
                   <td className="p-3">{o.counts.customers}</td>

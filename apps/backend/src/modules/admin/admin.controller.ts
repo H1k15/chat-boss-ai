@@ -25,6 +25,11 @@ export class AdminController {
     return this.admin.setActive(id, !!body.isActive);
   }
 
+  @Patch(':id/plan')
+  setPlan(@Param('id') id: string, @Body() body: { plan: string }) {
+    return this.admin.setPlan(id, body.plan);
+  }
+
   @Post(':id/users')
   addUser(
     @Param('id') id: string,

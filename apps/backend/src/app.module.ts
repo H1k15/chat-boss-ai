@@ -21,6 +21,7 @@ import { ReplyTemplatesModule } from './modules/reply-templates/reply-templates.
 import { SheetsModule } from './modules/sheets/sheets.module';
 import { AiConfigModule } from './modules/ai-config/ai-config.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { TenantContextInterceptor } from './common/tenant-context.interceptor';
 
 @Module({
@@ -47,6 +48,7 @@ import { TenantContextInterceptor } from './common/tenant-context.interceptor';
     SheetsModule,
     AiConfigModule,
     AdminModule,
+    BillingModule,
   ],
   // Guard đăng ký toàn cục: mặc định MỌI route đều phải đăng nhập, trừ route
   // gắn @Public(). Thứ tự quan trọng — xác thực (JWT) phải chạy trước phân

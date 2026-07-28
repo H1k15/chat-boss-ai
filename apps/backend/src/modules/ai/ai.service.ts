@@ -11,6 +11,7 @@ import {
 } from '@cba/shared';
 import { Customer, Prisma } from '@prisma/client';
 import { appSettingKey } from '../../common/tenant';
+import { LimitsService } from '../billing/limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IntentClassifierService } from './pipeline/intent-classifier.service';
 import { InfoExtractorService } from './pipeline/info-extractor.service';
@@ -37,12 +38,16 @@ export class AiService {
     private readonly orchestrator: OrchestratorService,
     private readonly telegram: TelegramService,
     private readonly appointments: AppointmentsService,
+    private readonly limits: LimitsService,
   ) {}
 
   async suggest(
     req: AiSuggestRequest,
     userId?: string,
   ): Promise<AiSuggestResponse> {
+    // [billing] Chặn nếu org đã hết hạn mức gợi ý AI trong ngày (chốt chi phí LLM).
+    await this.limits.assertAiWithinDaily();
+
     // [0] Nạp thông tin đã biết về khách (nếu nhân viên đã lưu khách này).
     // Không có bước này thì mỗi lần bấm "Gợi ý" AI lại hỏi lại khu vực và
     // ngân sách mà khách đã trả lời từ hôm trước.
