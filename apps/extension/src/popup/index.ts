@@ -7,6 +7,11 @@ const API_BASE =
   (globalThis as { CBA_API_BASE?: string }).CBA_API_BASE ||
   'http://localhost:3001/api/v1';
 
+// URL dashboard quản trị (Next.js). Dev chạy port 3005; đổi qua CBA_DASHBOARD_URL.
+const DASHBOARD_URL =
+  (globalThis as { CBA_DASHBOARD_URL?: string }).CBA_DASHBOARD_URL ||
+  'http://localhost:3005';
+
 interface StoredUser {
   fullName?: string;
   email?: string;
@@ -46,6 +51,8 @@ function showAccount(user: StoredUser): void {
   setText('acct-role', roleLabel(user.role));
   const av = $('avatar');
   if (av) av.textContent = (name.trim()[0] || '?').toUpperCase();
+  // Nút vào trang quản trị chỉ hiện với tài khoản ADMIN.
+  $('admin-btn')?.classList.toggle('hidden', user.role !== 'ADMIN');
   $('login-view')?.classList.add('hidden');
   $('account-view')?.classList.remove('hidden');
 }
@@ -113,6 +120,11 @@ form?.addEventListener('submit', async (e) => {
       btn.textContent = 'Đăng nhập';
     }
   }
+});
+
+// Mở dashboard quản trị ở tab mới (chỉ ADMIN mới thấy nút này).
+$('admin-btn')?.addEventListener('click', () => {
+  void chrome.tabs.create({ url: DASHBOARD_URL });
 });
 
 $('logout-btn')?.addEventListener('click', async () => {
