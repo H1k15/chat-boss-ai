@@ -2,6 +2,7 @@
 // Ánh xạ 1-1 với enum trong prisma/schema.prisma.
 
 export enum UserRole {
+  SUPER_ADMIN = 'SUPER_ADMIN', // chủ SaaS — quản lý mọi org (multi-tenant)
   ADMIN = 'ADMIN',
   MANAGER = 'MANAGER',
   STAFF = 'STAFF',

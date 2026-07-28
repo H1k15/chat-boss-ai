@@ -14,6 +14,19 @@ async function main() {
     create: { id: ORG_ID, name: 'Nhà trọ mặc định', slug: 'default' },
   });
 
+  // Super-admin (chủ SaaS) — quản lý mọi nhà trọ. Thuộc org mặc định nhưng bỏ
+  // qua tenant scope nhờ vai trò SUPER_ADMIN.
+  await prisma.user.upsert({
+    where: { organizationId_email: { organizationId: ORG_ID, email: 'super@chatboss.ai' } },
+    update: {},
+    create: {
+      email: 'super@chatboss.ai',
+      passwordHash: await bcrypt.hash('super123', 10),
+      fullName: 'Super Admin',
+      role: UserRole.SUPER_ADMIN,
+    },
+  });
+
   // Admin mặc định
   const admin = await prisma.user.upsert({
     where: { organizationId_email: { organizationId: ORG_ID, email: 'admin@chatboss.ai' } },
