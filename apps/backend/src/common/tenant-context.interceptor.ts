@@ -16,7 +16,9 @@ export class TenantContextInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest<Partial<AuthenticatedRequest>>();
     const orgId = req?.user?.organizationId;
-    if (!orgId) return next.handle();
+    // SUPER_ADMIN quản lý xuyên org -> KHÔNG đặt tenant context (truy vấn không
+    // bị lọc theo một org), để module admin thấy/thao tác mọi nhà trọ.
+    if (!orgId || req?.user?.role === 'SUPER_ADMIN') return next.handle();
 
     // Bọc subscribe trong ALS.run để context phủ cả quá trình chạy handler.
     return new Observable((subscriber) => {
