@@ -1,5 +1,11 @@
 // Prisma schema — Chat Boss AI
 // Tiền tệ lưu bằng Int (VND) để tránh sai số dấu phẩy động.
+//
+// MULTI-TENANCY (Đợt 1 — nền dữ liệu): mọi bảng nghiệp vụ có organizationId trỏ
+// về Organization. Tạm để @default("org_seed_default") để hệ đang chạy không gãy
+// khi tạo bản ghi mới (code chưa gắn org). ĐỢT 2 sẽ BỎ default và tự set org theo
+// tenant context (JWT) qua Prisma extension. geocode_cache (trong app_settings)
+// giữ toàn cục, KHÔNG gắn org — xử lý ở Đợt 3.
 
 generator client {
   provider = "prisma-client-js"
@@ -17,6 +23,7 @@ datasource db {
 // ============================ ENUMS ============================
 
 enum UserRole {
+  SUPER_ADMIN // chủ SaaS — quản lý mọi org (Đợt 4). Không thuộc org cụ thể.
   ADMIN
   MANAGER
   STAFF
@@ -88,9 +95,36 @@ enum NotifyEvent {
 
 // ============================ MODELS ============================
 
+// Mỗi chủ trọ = một Organization. Dữ liệu tách biệt theo organizationId.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      String   @default("free")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users                 User[]
+  facebookProfiles      FacebookProfile[]
+  customers             Customer[]
+  customerNotes         CustomerNote[]
+  conversations         Conversation[]
+  messages              Message[]
+  rooms                 Room[]
+  appointments          Appointment[]
+  careTasks             CareTask[]
+  telegramNotifications TelegramNotification[]
+  activityLogs          ActivityLog[]
+  replyTemplates        ReplyTemplate[]
+  importBatches         ImportBatch[]
+
+  @@map("organizations")
+}
+
 model User {
   id           String   @id @default(cuid())
-  email        String   @unique
+  email        String
   passwordHash String
   fullName     String
   role         UserRole @default(STAFF)
@@ -98,30 +132,39 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  facebookProfiles FacebookProfile[]
-  assignedCustomers Customer[]       @relation("AssignedStaff")
-  appointments     Appointment[]     @relation("StaffAppointments")
-  careTasks        CareTask[]
-  activityLogs     ActivityLog[]
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
+  facebookProfiles  FacebookProfile[]
+  assignedCustomers Customer[]        @relation("AssignedStaff")
+  appointments      Appointment[]     @relation("StaffAppointments")
+  careTasks         CareTask[]
+  activityLogs      ActivityLog[]
+
+  @@unique([organizationId, email]) // email duy nhất TRONG một org
+  @@index([organizationId])
   @@map("users")
 }
 
 model FacebookProfile {
-  id            String   @id @default(cuid())
-  displayName   String // Tên hiển thị nick (Nick A, Nick B...)
+  id             String   @id @default(cuid())
+  displayName    String // Tên hiển thị nick (Nick A, Nick B...)
   browserProfile String? // Tên profile trình duyệt đang dùng
-  area          String? // Khu vực phụ trách
-  isActive      Boolean  @default(true)
-  ownerId       String
-  owner         User     @relation(fields: [ownerId], references: [id])
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  area           String? // Khu vực phụ trách
+  isActive       Boolean  @default(true)
+  ownerId        String
+  owner          User     @relation(fields: [ownerId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   customers     Customer[]
   conversations Conversation[]
 
   @@index([ownerId])
+  @@index([organizationId])
   @@map("facebook_profiles")
 }
 
@@ -145,6 +188,9 @@ model Customer {
   assignedToId String?
   assignedTo   User?   @relation("AssignedStaff", fields: [assignedToId], references: [id])
 
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -156,6 +202,7 @@ model Customer {
   @@index([status])
   @@index([assignedToId])
   @@index([phone])
+  @@index([organizationId])
   @@map("customers")
 }
 
@@ -167,69 +214,81 @@ model CustomerNote {
   content    String
   createdAt  DateTime @default(now())
 
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
   @@index([customerId])
+  @@index([organizationId])
   @@map("customer_notes")
 }
 
 model Conversation {
-  id                String   @id @default(cuid())
+  id                String           @id @default(cuid())
   customerId        String
-  customer          Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer          Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
   facebookProfileId String?
   facebookProfile   FacebookProfile? @relation(fields: [facebookProfileId], references: [id])
-  channel           Channel  @default(INBOX)
+  channel           Channel          @default(INBOX)
   lastMessage       String?
   intent            CustomerIntent?
-  status            String   @default("open")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  status            String           @default("open")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   messages Message[]
 
   @@index([customerId])
+  @@index([organizationId])
   @@map("conversations")
 }
 
 model Message {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role           String // "customer" | "staff" | "ai_suggestion"
   text           String
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
+
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([conversationId])
+  @@index([organizationId])
   @@map("messages")
 }
 
 model Room {
-  id              String     @id @default(cuid())
-  roomCode        String     @unique
-  code            String?    @unique // mã ngắn tự cấp (R001, R002...), giữ nguyên qua các lần đồng bộ
-  roomNumber      String? // số phòng nguyên văn từ sheet (VD "501")
-  stayDuration    String? // thời gian ở (nguyên văn cột "Thời gian ở")
-  salePrice       Int? // giá sale/khuyến mãi (VND), null nếu không có
-  area            String
-  address         String?
-  price           Int // VND
-  deposit         Int? // VND
-  size            Int? // m2
-  peopleCountMin  Int?
-  peopleCountMax  Int?
-  roomType        String? // gác, studio, phòng thường
-  wc              String? // "rieng" | "chung"
-  utilities       String[]   @default([]) // ["may_lanh","tu_lanh","nem"]
+  id               String     @id @default(cuid())
+  roomCode         String
+  code             String? // mã ngắn tự cấp (R001, R002...), giữ nguyên qua các lần đồng bộ
+  roomNumber       String? // số phòng nguyên văn từ sheet (VD "501")
+  stayDuration     String? // thời gian ở (nguyên văn cột "Thời gian ở")
+  salePrice        Int? // giá sale/khuyến mãi (VND), null nếu không có
+  area             String
+  address          String?
+  price            Int // VND
+  deposit          Int? // VND
+  size             Int? // m2
+  peopleCountMin   Int?
+  peopleCountMax   Int?
+  roomType         String? // gác, studio, phòng thường
+  wc               String? // "rieng" | "chung"
+  utilities        String[]   @default([]) // ["may_lanh","tu_lanh","nem"]
   electricityPrice Int?
-  waterPrice      Int?
-  freeHours       Boolean    @default(true) // giờ giấc tự do
-  parking         Boolean    @default(false)
-  petAllowed      Boolean    @default(false)
-  status          RoomStatus @default(AVAILABLE)
-  imageLinks      String[]   @default([])
-  videoLinks      String[]   @default([])
-  managerName     String?
-  note            String?
-  furniture       String? // nội thất nguyên văn (cho AI đọc, không tách cột)
+  waterPrice       Int?
+  freeHours        Boolean    @default(true) // giờ giấc tự do
+  parking          Boolean    @default(false)
+  petAllowed       Boolean    @default(false)
+  status           RoomStatus @default(AVAILABLE)
+  imageLinks       String[]   @default([])
+  videoLinks       String[]   @default([])
+  managerName      String?
+  note             String?
+  furniture        String? // nội thất nguyên văn (cho AI đọc, không tách cột)
 
   // Toạ độ đã geocode (OpenStreetMap Nominatim) — để lọc phòng theo bán kính
   // bằng Haversine. Có toạ độ rồi thì KHÔNG gọi lại API. Nguồn 'manual' = nhân
@@ -243,14 +302,20 @@ model Room {
   importBatchId String?
   importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
 
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   appointments Appointment[]
 
+  @@unique([organizationId, roomCode]) // mã phòng duy nhất TRONG một org
+  @@unique([organizationId, code])
   @@index([area])
   @@index([status])
   @@index([price])
+  @@index([organizationId])
   @@map("rooms")
 }
 
@@ -269,25 +334,33 @@ model Appointment {
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
   @@index([appointmentTime])
   @@index([staffId])
+  @@index([organizationId])
   @@map("appointments")
 }
 
 model CareTask {
-  id         String         @id @default(cuid())
-  customerId String
-  customer   Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  id           String         @id @default(cuid())
+  customerId   String
+  customer     Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
   assignedToId String?
-  assignedTo   User?        @relation(fields: [assignedToId], references: [id])
-  dueAt      DateTime
-  reason     String? // vì sao cần chăm (chưa phản hồi, đã xem ảnh...)
-  status     CareTaskStatus @default(PENDING)
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  assignedTo   User?          @relation(fields: [assignedToId], references: [id])
+  dueAt        DateTime
+  reason       String? // vì sao cần chăm (chưa phản hồi, đã xem ảnh...)
+  status       CareTaskStatus @default(PENDING)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
 
   @@index([dueAt])
   @@index([status])
+  @@index([organizationId])
   @@map("care_tasks")
 }
 
@@ -299,10 +372,15 @@ model TelegramNotification {
   sentAt    DateTime?
   success   Boolean     @default(false)
   error     String?
-  dedupeKey String?     @unique // chống gửi trùng
+  dedupeKey String? // chống gửi trùng
   createdAt DateTime    @default(now())
 
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, dedupeKey]) // dedupe trong phạm vi org
   @@index([event])
+  @@index([organizationId])
   @@map("telegram_notifications")
 }
 
@@ -315,8 +393,12 @@ model ActivityLog {
   meta      Json?
   createdAt DateTime @default(now())
 
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
   @@index([userId])
   @@index([action])
+  @@index([organizationId])
   @@map("activity_logs")
 }
 
@@ -329,6 +411,10 @@ model ReplyTemplate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
   @@map("reply_templates")
 }
 
@@ -342,14 +428,20 @@ model ImportBatch {
   createdBy String?
   createdAt DateTime @default(now())
 
+  organizationId String       @default("org_seed_default")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
   rooms Room[]
 
+  @@index([organizationId])
   @@map("import_batches")
 }
 
 // Cấu hình chạy runtime dạng key-value (admin sửa qua API, không phải deploy
 // lại). Ví dụ: cấu hình Telegram (chat mặc định, bật/tắt sự kiện). KHÔNG lưu
 // secret ở đây (bot token vẫn ở .env) — bảng này có thể lộ qua API cấu hình.
+// GHI CHÚ multi-tenant: Đợt 3 sẽ đổi khoá thành (organizationId, key); riêng
+// geocode_cache giữ toàn cục.
 model AppSetting {
   key       String   @id
   value     Json

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import TelegramBot from 'node-telegram-bot-api';
 import { Prisma } from '@prisma/client';
 import { NotifyEvent, TelegramConfig, TelegramConfigView } from '@cba/shared';
+import { DEFAULT_ORG_ID } from '../../common/tenant';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const SETTING_KEY = 'telegram';
@@ -86,7 +87,12 @@ export class TelegramService {
     // Chống gửi trùng cùng một sự kiện-lead.
     if (params.dedupeKey) {
       const existed = await this.prisma.telegramNotification.findUnique({
-        where: { dedupeKey: params.dedupeKey },
+        where: {
+          organizationId_dedupeKey: {
+            organizationId: DEFAULT_ORG_ID,
+            dedupeKey: params.dedupeKey,
+          },
+        },
       });
       if (existed?.success) return;
     }
