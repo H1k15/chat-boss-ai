@@ -3,10 +3,20 @@ import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
+// Multi-tenant Đợt 1: mọi dữ liệu thuộc org mặc định (Đợt 2 mới đa org).
+const ORG_ID = 'org_seed_default';
+
 async function main() {
+  // Org mặc định (idempotent — migration cũng đã chèn sẵn).
+  await prisma.organization.upsert({
+    where: { id: ORG_ID },
+    update: {},
+    create: { id: ORG_ID, name: 'Nhà trọ mặc định', slug: 'default' },
+  });
+
   // Admin mặc định
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@chatboss.ai' },
+    where: { organizationId_email: { organizationId: ORG_ID, email: 'admin@chatboss.ai' } },
     update: {},
     create: {
       email: 'admin@chatboss.ai',
@@ -17,7 +27,7 @@ async function main() {
   });
 
   const sale1 = await prisma.user.upsert({
-    where: { email: 'sale1@chatboss.ai' },
+    where: { organizationId_email: { organizationId: ORG_ID, email: 'sale1@chatboss.ai' } },
     update: {},
     create: {
       email: 'sale1@chatboss.ai',
@@ -79,7 +89,7 @@ async function main() {
   ];
   for (const r of rooms) {
     await prisma.room.upsert({
-      where: { roomCode: r.roomCode },
+      where: { organizationId_roomCode: { organizationId: ORG_ID, roomCode: r.roomCode } },
       update: r,
       create: r,
     });

@@ -11,7 +11,10 @@ export class AuthService {
   ) {}
 
   async login(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    // findFirst (không phải findUnique): email nay duy nhất theo (org, email),
+    // đăng nhập chưa biết org nên tìm theo email. Đợt 2 (multi-tenant thật) sẽ
+    // xác định org qua subdomain/slug trước khi tra user.
+    const user = await this.prisma.user.findFirst({ where: { email } });
     if (!user || !user.isActive)
       throw new UnauthorizedException('Sai tài khoản hoặc mật khẩu');
     const ok = await bcrypt.compare(password, user.passwordHash);
