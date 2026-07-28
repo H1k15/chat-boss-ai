@@ -122,12 +122,20 @@ function detectPostViewing(text: string): PostViewKind | undefined {
 // FAQ chen ngang trả lời ngắn TẤT ĐỊNH (mục V) — rồi vẫn quay lại slot còn thiếu.
 const FAQ: { re: RegExp; answer: string }[] = [
   {
-    re: /moi gioi|mat phi|co phi|ton phi|tinh phi|phi dich vu moi gioi/,
-    answer: 'Bên mình hỗ trợ xem phòng miễn phí, không mất phí môi giới ạ.',
+    re: /moi gioi|mat phi|co phi|ton phi|tinh phi|phi tu van|phi dich vu moi gioi/,
+    answer:
+      'Bên mình cho xem phòng miễn phí, không mất phí môi giới và không phát sinh phí tư vấn ạ.',
   },
   {
     re: /coc bao nhieu|dat coc|tien coc/,
     answer: 'Mức cọc tuỳ phòng, mình sẽ báo chính xác theo từng phòng ạ.',
+  },
+  // Câu khó hay gặp (theo SOP tư vấn): điện/nước/phí dịch vụ "đắt". Trả lời rõ
+  // cơ chế tính, KHÔNG khẳng định mức cụ thể (số thật lấy theo từng phòng).
+  {
+    re: /dien nuoc|tien dien|tien nuoc|gia dien|gia nuoc|phi dich vu|phi phat sinh|dich vu.{0,8}(dat|cao)/,
+    answer:
+      'Điện nước nhà mình tính theo đồng hồ riêng từng phòng, dùng bao nhiêu trả bấy nhiêu và báo rõ ngay từ đầu ạ.',
   },
 ];
 
