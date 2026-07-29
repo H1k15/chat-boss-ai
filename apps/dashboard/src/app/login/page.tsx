@@ -31,8 +31,9 @@ export default function LoginPage() {
       localStorage.setItem(LAST_EMAIL_KEY, email); // nhớ email cho lần sau
       setMsg('Đã đăng nhập: ' + data.user.fullName);
       window.location.href = '/';
-    } catch {
-      setMsg('Đăng nhập thất bại');
+    } catch (e) {
+      // Hiện thông báo cụ thể từ backend (vd: vượt số thiết bị của Key).
+      setMsg(e instanceof Error && e.message ? e.message : 'Đăng nhập thất bại');
     }
   }
 

@@ -50,10 +50,24 @@ function handle401(res: Response) {
   }
 }
 
+// Ném Error với thông báo của backend (NestJS trả { message }). message có thể là
+// chuỗi hoặc mảng chuỗi (validation). Rơi về "METHOD path -> status" nếu không đọc được.
+async function fail(res: Response, method: string, path: string): Promise<never> {
+  let msg = `${method} ${path} -> ${res.status}`;
+  try {
+    const body = (await res.json()) as { message?: string | string[] };
+    if (body?.message)
+      msg = Array.isArray(body.message) ? body.message.join(', ') : body.message;
+  } catch {
+    /* body không phải JSON -> giữ msg mặc định */
+  }
+  throw new Error(msg);
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
   handle401(res);
-  if (!res.ok) throw new Error(`GET ${path} -> ${res.status}`);
+  if (!res.ok) return fail(res, 'GET', path);
   return res.json();
 }
 
@@ -64,7 +78,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   handle401(res);
-  if (!res.ok) throw new Error(`POST ${path} -> ${res.status}`);
+  if (!res.ok) return fail(res, 'POST', path);
   return res.json();
 }
 
@@ -75,7 +89,7 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   handle401(res);
-  if (!res.ok) throw new Error(`PATCH ${path} -> ${res.status}`);
+  if (!res.ok) return fail(res, 'PATCH', path);
   return res.json();
 }
 
@@ -85,7 +99,7 @@ export async function apiDelete(path: string): Promise<void> {
     headers: authHeaders(),
   });
   handle401(res);
-  if (!res.ok) throw new Error(`DELETE ${path} -> ${res.status}`);
+  if (!res.ok) await fail(res, 'DELETE', path);
 }
 
 // Upload file (multipart) — cho import Excel.

@@ -150,12 +150,13 @@ form?.addEventListener('submit', async (e) => {
       body: JSON.stringify({ email, password }),
     });
     if (!res.ok) {
-      setText(
-        'err',
-        res.status === 401
-          ? 'Sai email hoặc mật khẩu.'
-          : `Đăng nhập thất bại (HTTP ${res.status}).`,
-      );
+      if (res.status === 401) {
+        setText('err', 'Sai email hoặc mật khẩu.');
+        return;
+      }
+      // Lỗi khác (vd: 403 vượt số thiết bị của Key) -> hiện thông báo của backend.
+      const j = (await res.json().catch(() => ({}))) as { message?: string };
+      setText('err', j.message || `Đăng nhập thất bại (HTTP ${res.status}).`);
       return;
     }
     const data = await res.json();

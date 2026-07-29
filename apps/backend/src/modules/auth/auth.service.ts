@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -60,8 +61,11 @@ export class AuthService {
     };
   }
 
-  // Tạo phiên; ÉP giới hạn thiết bị của gói: vượt maxSeats -> thu hồi phiên CŨ
-  // nhất (thiết bị lâu không dùng bị đá ra) để nhường chỗ thiết bị mới.
+  // Tạo phiên theo 2 quy tắc:
+  //  1) MỖI TÀI KHOẢN CHỈ 1 THIẾT BỊ: đăng nhập ở máy mới thu hồi mọi phiên cũ
+  //     CỦA CHÍNH tài khoản này (chuyển máy mượt, không bao giờ tự chặn mình).
+  //  2) TRẦN CỦA KEY = số tài khoản online cùng lúc (maxSeats). Khi một tài khoản
+  //     ĐANG offline đăng nhập mà org đã đạt trần -> KHÔNG đá ai, CHẶN đăng nhập.
   private async createSession(
     userId: string,
     organizationId: string,
@@ -73,19 +77,34 @@ export class AuthService {
       select: { plan: true },
     });
     const plan = planFor(org?.plan);
-    if (plan.maxSeats != null) {
-      const active = await this.prisma.userSession.findMany({
+
+    // Phiên cũ của CHÍNH tài khoản này (thường 0 hoặc 1 do quy tắc 1 thiết bị).
+    const mine = await this.prisma.userSession.findMany({
+      where: { organizationId, userId, revokedAt: null },
+      select: { id: true },
+    });
+
+    // Quy tắc 2: chỉ xét trần khi tài khoản đang OFFLINE (chưa chiếm chỗ nào).
+    // Đăng nhập lại từ chính tài khoản đang online = chuyển máy -> không tính thêm.
+    if (plan.maxSeats != null && mine.length === 0) {
+      const online = await this.prisma.userSession.findMany({
         where: { organizationId, revokedAt: null },
-        orderBy: { lastSeenAt: 'asc' },
-        select: { id: true },
+        distinct: ['userId'],
+        select: { userId: true },
       });
-      const over = active.length + 1 - plan.maxSeats;
-      if (over > 0)
-        await this.prisma.userSession.updateMany({
-          where: { id: { in: active.slice(0, over).map((s) => s.id) } },
-          data: { revokedAt: new Date() },
-        });
+      if (online.length >= plan.maxSeats)
+        throw new ForbiddenException(
+          `Vượt số thiết bị của Key: gói "${plan.label}" chỉ cho ${plan.maxSeats} tài khoản đăng nhập cùng lúc. Vui lòng đăng xuất một thiết bị khác rồi thử lại.`,
+        );
     }
+
+    // Quy tắc 1: đá mọi phiên cũ của tài khoản này (giữ đúng 1 thiết bị).
+    if (mine.length)
+      await this.prisma.userSession.updateMany({
+        where: { id: { in: mine.map((s) => s.id) } },
+        data: { revokedAt: new Date() },
+      });
+
     await this.prisma.userSession.create({
       data: {
         userId,

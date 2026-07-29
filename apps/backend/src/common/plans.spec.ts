@@ -23,4 +23,11 @@ describe('plans — gói dịch vụ', () => {
       expect.arrayContaining(['default', 'pro', 'unlimited']),
     );
   });
+
+  it('maxSeats <= maxUsers (mỗi tài khoản 1 thiết bị -> không thể online quá số tài khoản)', () => {
+    for (const p of Object.values(PLANS)) {
+      if (p.maxSeats != null && p.maxUsers != null)
+        expect(p.maxSeats).toBeLessThanOrEqual(p.maxUsers);
+    }
+  });
 });
