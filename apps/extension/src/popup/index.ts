@@ -43,6 +43,16 @@ function roleLabel(r?: string): string {
         : r || 'Người dùng';
 }
 
+// Mã MÁY để backend "đá nguyên máy cũ" khi đăng nhập máy khác. Dùng CHUNG với
+// dashboard (bridge content-script ghi mã này vào localStorage dashboard).
+async function deviceId(): Promise<string> {
+  const { cbaMachineId } = await chrome.storage.local.get('cbaMachineId');
+  if (cbaMachineId) return cbaMachineId as string;
+  const id = crypto.randomUUID();
+  await chrome.storage.local.set({ cbaMachineId: id });
+  return id;
+}
+
 // Fetch có token (popup tự làm, không import api.ts để content.js luôn tự chứa).
 async function authFetch(path: string, init?: RequestInit): Promise<Response> {
   const { accessToken } = await chrome.storage.local.get('accessToken');
@@ -50,6 +60,7 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     ...init,
     headers: {
       'Content-Type': 'application/json',
+      'x-device-id': await deviceId(),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
   });
@@ -146,7 +157,10 @@ form?.addEventListener('submit', async (e) => {
   try {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-device-id': await deviceId(),
+      },
       body: JSON.stringify({ email, password }),
     });
     if (!res.ok) {

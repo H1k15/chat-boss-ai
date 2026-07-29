@@ -13,6 +13,7 @@ import { planFor, MAX_SESSIONS_PER_USER } from '../../common/plans';
 interface SessionMeta {
   userAgent?: string;
   ip?: string;
+  deviceId?: string; // mã MÁY (dashboard + extension cùng máy dùng chung)
 }
 const hashToken = (t: string) => createHash('sha256').update(t).digest('hex');
 
@@ -67,14 +68,14 @@ export class AuthService {
     };
   }
 
-  // Tạo phiên theo 2 quy tắc:
-  //  1) MỖI TÀI KHOẢN ~ 1 MÁY: mỗi tài khoản chạy tối đa MAX_SESSIONS_PER_USER
-  //     phiên (dashboard + extension của cùng 1 máy). Đăng nhập vượt số này (mở
-  //     bề mặt ở máy mới) -> đá phiên CŨ NHẤT của chính tài khoản để nhường chỗ,
-  //     nên máy cũ bị đẩy ra dần. Việc đá này KHÔNG làm tăng tổng phiên của org.
-  //  2) TRẦN KEY = tổng số phiên đồng thời của org (maxSeats). Chỉ khi phiên mới
-  //     LÀM TĂNG tổng (tài khoản chưa đạt trần phiên của nó) mới xét: nếu tổng
-  //     phiên hiện tại đã >= maxSeats -> CHẶN, không đá ai.
+  // Tạo phiên theo 3 quy tắc:
+  //  0) ĐÁ NGUYÊN MÁY CŨ (khi có deviceId): đăng nhập từ MÁY MỚI thu hồi NGAY mọi
+  //     phiên của tài khoản có deviceId khác (kể cả phiên cũ chưa gắn máy = null).
+  //     dashboard + extension của CÙNG máy dùng chung deviceId nên vẫn sống chung.
+  //  1) MỖI MÁY tối đa MAX_SESSIONS_PER_USER phiên (dashboard + extension). Vượt
+  //     -> đá phiên CŨ NHẤT trên chính máy đó (không làm tăng tổng phiên org).
+  //  2) TRẦN KEY = tổng phiên đồng thời của org (maxSeats). Chỉ khi phiên mới LÀM
+  //     TĂNG tổng mới xét: tổng hiện tại >= maxSeats -> CHẶN, không đá ai.
   private async createSession(
     userId: string,
     organizationId: string,
@@ -87,15 +88,32 @@ export class AuthService {
     });
     const plan = planFor(org?.plan);
 
+    // Quy tắc 0: đá nguyên máy cũ (và phiên legacy chưa gắn deviceId).
+    if (meta.deviceId)
+      await this.prisma.userSession.updateMany({
+        where: {
+          organizationId,
+          userId,
+          revokedAt: null,
+          OR: [{ deviceId: { not: meta.deviceId } }, { deviceId: null }],
+        },
+        data: { revokedAt: new Date() },
+      });
+
+    // Phiên còn lại trên MÁY hiện tại (nếu có deviceId) hoặc của tài khoản.
     const mine = await this.prisma.userSession.findMany({
-      where: { organizationId, userId, revokedAt: null },
+      where: {
+        organizationId,
+        userId,
+        revokedAt: null,
+        ...(meta.deviceId ? { deviceId: meta.deviceId } : {}),
+      },
       orderBy: { lastSeenAt: 'asc' }, // cũ nhất trước
       select: { id: true },
     });
 
     if (mine.length >= MAX_SESSIONS_PER_USER) {
-      // Quy tắc 1: đã đủ số bề mặt/máy -> đá phiên cũ nhất để chừa 1 chỗ cho phiên
-      // mới (tổng phiên org không đổi -> không đụng trần Key).
+      // Quy tắc 1: máy đủ số bề mặt -> đá phiên cũ nhất để chừa chỗ (tổng không đổi).
       const evict = mine.length - (MAX_SESSIONS_PER_USER - 1);
       await this.prisma.userSession.updateMany({
         where: { id: { in: mine.slice(0, evict).map((s) => s.id) } },
@@ -119,6 +137,7 @@ export class AuthService {
         refreshTokenHash: hashToken(refreshToken),
         userAgent: meta.userAgent?.slice(0, 300) ?? null,
         ip: meta.ip ?? null,
+        deviceId: meta.deviceId ?? null,
       },
     });
   }

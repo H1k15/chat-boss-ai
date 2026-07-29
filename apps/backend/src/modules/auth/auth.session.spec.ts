@@ -5,11 +5,11 @@ import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 // Quy tắc phiên (gói 'default': maxSeats = 10; MAX_SESSIONS_PER_USER = 2):
-//  1) Mỗi tài khoản ~ 1 máy = tối đa 2 phiên (dashboard + extension). Đăng nhập
-//     vượt 2 -> đá phiên CŨ NHẤT của chính nó (không tăng tổng phiên org).
-//  2) Trần Key = tổng phiên org. Phiên mới LÀM TĂNG tổng mà tổng đã >= maxSeats
-//     -> CHẶN (không đá ai).
-describe('AuthService — phiên/máy + trần Key theo tổng phiên', () => {
+//  0) Có deviceId: đăng nhập MÁY MỚI -> đá NGAY mọi phiên máy khác (deviceId khác
+//     hoặc null). dashboard + extension cùng máy (cùng deviceId) sống chung.
+//  1) Mỗi máy tối đa 2 phiên -> vượt thì đá phiên cũ nhất trên máy đó.
+//  2) Trần Key = tổng phiên org. Phiên mới làm TĂNG tổng mà tổng >= maxSeats -> CHẶN.
+describe('AuthService — phiên theo MÁY (deviceId) + trần Key', () => {
   beforeAll(() => {
     process.env.JWT_ACCESS_SECRET = 'test-access';
     process.env.JWT_REFRESH_SECRET = 'test-refresh';
@@ -17,11 +17,13 @@ describe('AuthService — phiên/máy + trần Key theo tổng phiên', () => {
 
   function makePrisma(opts: {
     passwordHash: string;
-    mine: { id: string }[]; // phiên đang mở của chính tài khoản (cũ -> mới)
+    mine: { id: string }[]; // phiên trên MÁY hiện tại (cũ -> mới)
     total: number; // tổng phiên đang mở của org
-    evicted: string[][];
+    evicted: string[][]; // các lần đá theo id (quy tắc 1)
+    kicked: number; // số lần đá-nguyên-máy-khác (quy tắc 0)
     counters: { created: number };
   }) {
+    const counters = opts.counters;
     return {
       user: {
         findFirst: async () => ({
@@ -39,88 +41,110 @@ describe('AuthService — phiên/máy + trần Key theo tổng phiên', () => {
       userSession: {
         findMany: async () => opts.mine,
         count: async () => opts.total,
-        updateMany: async ({ where }: { where: { id: { in: string[] } } }) => {
-          opts.evicted.push(where.id.in);
-          return { count: where.id.in.length };
+        updateMany: async ({
+          where,
+        }: {
+          where: { id?: { in: string[] } };
+        }) => {
+          if (where.id?.in) {
+            opts.evicted.push(where.id.in);
+            return { count: where.id.in.length };
+          }
+          opts.kicked++; // đá-nguyên-máy-khác (where theo deviceId, không có id.in)
+          return { count: 1 };
         },
         create: async () => {
-          opts.counters.created++;
+          counters.created++;
           return {};
         },
       },
     } as unknown as PrismaService;
   }
 
-  it('bề mặt thứ 2 cùng máy (1/2 phiên) khi org còn chỗ -> tạo thêm, không đá', async () => {
+  it('đăng nhập MÁY MỚI (deviceId khác) -> đá nguyên máy cũ ngay, tạo phiên máy mới', async () => {
     const passwordHash = await bcrypt.hash('pw123456', 10);
-    const evicted: string[][] = [];
-    const counters = { created: 0 };
-    const prisma = makePrisma({
+    const opts = {
       passwordHash,
-      mine: [{ id: 'dash' }], // đang có 1 phiên (dashboard)
-      total: 5, // org 5/10 -> còn chỗ
-      evicted,
-      counters,
-    });
-    const svc = new AuthService(prisma, new JwtService());
-    const res = await svc.login('a@b.c', 'pw123456', { userAgent: 'ext' });
+      mine: [], // máy mới chưa có phiên nào của tài khoản
+      total: 2,
+      evicted: [] as string[][],
+      kicked: 0,
+      counters: { created: 0 },
+    };
+    const svc = new AuthService(makePrisma(opts), new JwtService());
+    const res = await svc.login('a@b.c', 'pw123456', { deviceId: 'MAY-B' });
     expect(res.accessToken).toBeTruthy();
-    expect(counters.created).toBe(1);
-    expect(evicted).toEqual([]); // chưa đủ 2 phiên -> không đá
+    expect(opts.kicked).toBe(1); // đã đá máy cũ
+    expect(opts.counters.created).toBe(1);
+    expect(opts.evicted).toEqual([]); // không cần đá theo cap
   });
 
-  it('đủ 2 phiên rồi đăng nhập máy mới -> đá phiên cũ nhất, KHÔNG chặn dù org đầy', async () => {
+  it('bề mặt thứ 2 CÙNG máy (cùng deviceId) -> sống chung, không đá theo cap', async () => {
     const passwordHash = await bcrypt.hash('pw123456', 10);
-    const evicted: string[][] = [];
-    const counters = { created: 0 };
-    const prisma = makePrisma({
+    const opts = {
       passwordHash,
-      mine: [{ id: 'old' }, { id: 'new' }], // đã đủ 2 (cũ -> mới)
-      total: 10, // org đang ĐẦY (10/10)
-      evicted,
-      counters,
-    });
-    const svc = new AuthService(prisma, new JwtService());
-    const res = await svc.login('a@b.c', 'pw123456', {});
+      mine: [{ id: 'dash' }], // đã có dashboard trên máy này (1/2)
+      total: 5,
+      evicted: [] as string[][],
+      kicked: 0,
+      counters: { created: 0 },
+    };
+    const svc = new AuthService(makePrisma(opts), new JwtService());
+    const res = await svc.login('a@b.c', 'pw123456', { deviceId: 'MAY-A' });
     expect(res.accessToken).toBeTruthy();
-    // Đá phiên cũ nhất của chính mình -> tổng org không tăng -> không dính trần.
-    expect(evicted).toEqual([['old']]);
-    expect(counters.created).toBe(1);
+    expect(opts.counters.created).toBe(1);
+    expect(opts.evicted).toEqual([]); // 1 < 2 -> chưa đá theo cap
   });
 
-  it('phiên mới làm tăng tổng khi org đã đầy trần -> CHẶN, không tạo/đá', async () => {
+  it('đủ 2 phiên trên máy -> đá phiên cũ nhất của máy đó (không chặn dù org đầy)', async () => {
     const passwordHash = await bcrypt.hash('pw123456', 10);
-    const evicted: string[][] = [];
-    const counters = { created: 0 };
-    const prisma = makePrisma({
+    const opts = {
       passwordHash,
-      mine: [{ id: 'dash' }], // mới 1 phiên -> thêm phiên sẽ tăng tổng
+      mine: [{ id: 'old' }, { id: 'new' }], // máy đã đủ 2 (cũ -> mới)
+      total: 10, // org đầy
+      evicted: [] as string[][],
+      kicked: 0,
+      counters: { created: 0 },
+    };
+    const svc = new AuthService(makePrisma(opts), new JwtService());
+    const res = await svc.login('a@b.c', 'pw123456', { deviceId: 'MAY-A' });
+    expect(res.accessToken).toBeTruthy();
+    expect(opts.evicted).toEqual([['old']]);
+    expect(opts.counters.created).toBe(1);
+  });
+
+  it('phiên mới làm tăng tổng khi org đầy trần -> CHẶN (không tạo/đá theo cap)', async () => {
+    const passwordHash = await bcrypt.hash('pw123456', 10);
+    const opts = {
+      passwordHash,
+      mine: [], // máy chưa có phiên -> thêm sẽ tăng tổng
       total: 10, // org đầy 10/10
-      evicted,
-      counters,
-    });
-    const svc = new AuthService(prisma, new JwtService());
-    await expect(svc.login('a@b.c', 'pw123456', {})).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-    expect(counters.created).toBe(0);
-    expect(evicted).toEqual([]); // không đá ai
+      evicted: [] as string[][],
+      kicked: 0,
+      counters: { created: 0 },
+    };
+    const svc = new AuthService(makePrisma(opts), new JwtService());
+    await expect(
+      svc.login('a@b.c', 'pw123456', { deviceId: 'MAY-C' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(opts.counters.created).toBe(0);
+    expect(opts.evicted).toEqual([]);
   });
 
   it('login sai mật khẩu -> 401, không tạo phiên', async () => {
     const passwordHash = await bcrypt.hash('dung', 10);
-    const counters = { created: 0 };
-    const prisma = makePrisma({
+    const opts = {
       passwordHash,
       mine: [],
       total: 0,
-      evicted: [],
-      counters,
-    });
-    const svc = new AuthService(prisma, new JwtService());
+      evicted: [] as string[][],
+      kicked: 0,
+      counters: { created: 0 },
+    };
+    const svc = new AuthService(makePrisma(opts), new JwtService());
     await expect(svc.login('a@b.c', 'sai', {})).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
-    expect(counters.created).toBe(0);
+    expect(opts.counters.created).toBe(0);
   });
 });

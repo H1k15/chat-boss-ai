@@ -20,6 +20,12 @@
       "js": ["content.js"],
       "css": ["sidebar.css"],
       "run_at": "document_idle"
+    },
+    {
+      "comment": "Bridge: chia sẻ mã MÁY cho dashboard (dev: localhost). Prod: thêm domain dashboard vào matches + host_permissions.",
+      "matches": ["http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_start"
     }
   ],
   "action": {

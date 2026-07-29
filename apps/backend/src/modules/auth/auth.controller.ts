@@ -9,7 +9,9 @@ import type { AuthenticatedRequest } from './authenticated-request';
 function sessionMeta(req: Request) {
   const fwd = req.headers['x-forwarded-for'];
   const ip = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(',')[0]?.trim() || req.ip;
-  return { userAgent: req.headers['user-agent'], ip };
+  const dev = req.headers['x-device-id'];
+  const deviceId = (Array.isArray(dev) ? dev[0] : dev)?.slice(0, 100) || undefined;
+  return { userAgent: req.headers['user-agent'], ip, deviceId };
 }
 
 @Controller('auth')

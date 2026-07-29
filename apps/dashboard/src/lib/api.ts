@@ -8,6 +8,22 @@ export function getToken(): string | null {
     : null;
 }
 
+// Mã MÁY để backend "đá nguyên máy cũ" khi đăng nhập máy mới. Nếu extension đã
+// cài, content-script bridge ghi sẵn 'cba_device_id' (dùng CHUNG với extension
+// -> dashboard + extension cùng máy sống chung). Nếu không, tự sinh một mã ổn định.
+export function getDeviceId(): string {
+  if (typeof window === 'undefined') return '';
+  let id = localStorage.getItem('cba_device_id');
+  if (!id) {
+    id =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('cba_device_id', id);
+  }
+  return id;
+}
+
 export function logout(): void {
   // Fire-and-forget: báo backend thu hồi phiên (giải phóng chỗ theo hạn mức
   // thiết bị của gói). Không chờ để đăng xuất luôn kể cả khi offline.
@@ -40,6 +56,7 @@ function authHeaders(json = true): Record<string, string> {
   return {
     ...(json ? { 'Content-Type': 'application/json' } : {}),
     ...(t ? { Authorization: `Bearer ${t}` } : {}),
+    ...(typeof window !== 'undefined' ? { 'x-device-id': getDeviceId() } : {}),
   };
 }
 

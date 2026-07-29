@@ -487,12 +487,14 @@ model UserSession {
   refreshTokenHash String    @unique // sha256(refreshToken)
   userAgent        String?
   ip               String?
+  deviceId         String? // mã MÁY (dashboard + extension cùng máy dùng chung)
   lastSeenAt       DateTime  @default(now())
   createdAt        DateTime  @default(now())
   revokedAt        DateTime?
 
   @@index([organizationId])
   @@index([userId])
+  @@index([userId, deviceId])
   @@map("user_sessions")
 }
 
