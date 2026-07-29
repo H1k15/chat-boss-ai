@@ -7,7 +7,7 @@ import { UserRole } from '@cba/shared';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { deaccent } from '../../common/vietnamese';
-import { PLAN_KEYS } from '../../common/plans';
+import { PLAN_KEYS, DEFAULT_PLAN } from '../../common/plans';
 import { LimitsService } from '../billing/limits.service';
 
 export interface CreateOrgInput {
@@ -60,7 +60,7 @@ export class AdminService {
       throw new BadRequestException(`Slug "${slug}" đã tồn tại`);
 
     const org = await this.prisma.organization.create({
-      data: { name, slug, plan: input.plan || 'free' },
+      data: { name, slug, plan: input.plan || DEFAULT_PLAN },
     });
     await this.prisma.user.create({
       data: {

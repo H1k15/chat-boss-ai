@@ -18,7 +18,7 @@ interface OrgRow {
 function makeFake() {
   const orgs: OrgRow[] = [
     { id: 'sys', slug: 'default', name: 'Hệ thống', plan: 'unlimited', isActive: true, subscriptionExpiresAt: null, archivedAt: null, note: null, updatedAt: new Date('2026-01-01T00:00:00Z'), createdAt: new Date('2026-01-01') },
-    { id: 'o1', slug: 'an-binh', name: 'An Binh', plan: 'free', isActive: true, subscriptionExpiresAt: null, archivedAt: null, note: null, updatedAt: new Date('2026-01-02T00:00:00Z'), createdAt: new Date('2026-01-02') },
+    { id: 'o1', slug: 'an-binh', name: 'An Binh', plan: 'default', isActive: true, subscriptionExpiresAt: null, archivedAt: null, note: null, updatedAt: new Date('2026-01-02T00:00:00Z'), createdAt: new Date('2026-01-02') },
   ];
   const users: Record<string, unknown>[] = [];
   const logs: Record<string, unknown>[] = [];
@@ -35,7 +35,7 @@ function makeFake() {
       },
       create: async ({ data }: { data: Partial<OrgRow> }) => {
         const o: OrgRow = {
-          id: 'new-' + seq++, slug: data.slug!, name: data.name!, plan: data.plan ?? 'free',
+          id: 'new-' + seq++, slug: data.slug!, name: data.name!, plan: data.plan ?? 'default',
           isActive: true, subscriptionExpiresAt: data.subscriptionExpiresAt ?? null, archivedAt: null,
           note: data.note ?? null, updatedAt: new Date(), createdAt: new Date(),
         };

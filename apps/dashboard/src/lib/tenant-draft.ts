@@ -62,13 +62,13 @@ export interface Change {
   payload: Record<string, unknown>;
 }
 
-export const PLANS = ['free', 'pro', 'unlimited'] as const;
+export const PLANS = ['default', 'pro', 'unlimited'] as const;
 export const PLAN_LABEL: Record<string, string> = {
-  free: 'Miễn phí',
+  default: 'Cơ bản',
   pro: 'Chuyên nghiệp',
   unlimited: 'Không giới hạn',
 };
-const PLAN_RANK: Record<string, number> = { free: 0, pro: 1, unlimited: 2 };
+const PLAN_RANK: Record<string, number> = { default: 0, pro: 1, unlimited: 2 };
 export const isDowngrade = (from: string, to: string) =>
   (PLAN_RANK[to] ?? 0) < (PLAN_RANK[from] ?? 0);
 

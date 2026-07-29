@@ -212,6 +212,18 @@ $('activate-btn')?.addEventListener('click', async () => {
 });
 
 $('logout-btn')?.addEventListener('click', async () => {
+  // Báo backend thu hồi phiên để giải phóng chỗ trong hạn mức thiết bị của gói.
+  const { refreshToken } = await chrome.storage.local.get('refreshToken');
+  if (refreshToken)
+    try {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+    } catch {
+      /* offline vẫn cho đăng xuất cục bộ */
+    }
   await chrome.storage.local.remove(['accessToken', 'refreshToken', 'user']);
   showLogin();
   toast('Đã đăng xuất');

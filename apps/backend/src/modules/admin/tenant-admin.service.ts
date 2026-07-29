@@ -8,7 +8,7 @@ import { UserRole } from '@cba/shared';
 import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PLAN_KEYS } from '../../common/plans';
+import { PLAN_KEYS, DEFAULT_PLAN } from '../../common/plans';
 import { DEFAULT_ORG_ID } from '../../common/tenant';
 import { deaccent } from '../../common/vietnamese';
 
@@ -247,7 +247,7 @@ export class TenantAdminService {
             data: {
               name: c.name.trim(),
               slug: slugify(c.name),
-              plan: c.plan || 'free',
+              plan: c.plan || DEFAULT_PLAN,
               note: c.note,
               subscriptionExpiresAt: c.expiresAt ? new Date(c.expiresAt) : null,
             },

@@ -9,7 +9,17 @@ export function getToken(): string | null {
 }
 
 export function logout(): void {
+  // Fire-and-forget: báo backend thu hồi phiên (giải phóng chỗ theo hạn mức
+  // thiết bị của gói). Không chờ để đăng xuất luôn kể cả khi offline.
+  const rt = localStorage.getItem('refreshToken');
+  if (rt)
+    void fetch(`${BASE}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: rt }),
+    }).catch(() => {});
   localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
   window.location.href = '/login';
 }
 

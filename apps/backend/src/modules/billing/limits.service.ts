@@ -13,11 +13,14 @@ export class LimitsService {
     return planFor(org?.plan);
   }
 
-  /** Chặn thêm nhân viên nếu đã đạt trần gói. */
+  /** Chặn thêm nhân viên nếu đã đạt trần gói. Chỉ đếm tài khoản ĐANG hoạt động
+   *  -> vô hiệu hoá (isActive=false) một nhân viên là giải phóng một suất. */
   async assertCanAddUser(orgId: string): Promise<void> {
     const plan = await this.planOf(orgId);
     if (plan.maxUsers == null) return;
-    const count = await this.prisma.user.count({ where: { organizationId: orgId } });
+    const count = await this.prisma.user.count({
+      where: { organizationId: orgId, isActive: true },
+    });
     if (count >= plan.maxUsers)
       throw new ForbiddenException(
         `Gói "${plan.label}" tối đa ${plan.maxUsers} nhân viên. Nâng gói để thêm.`,

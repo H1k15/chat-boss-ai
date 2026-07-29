@@ -100,7 +100,7 @@ model Organization {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
-  plan      String   @default("free")
+  plan      String   @default("default")
   isActive  Boolean  @default(true)
   // Hạn dùng dịch vụ. null = không giới hạn (org nội bộ/chủ). Quá hạn -> backend
   // chặn các endpoint giá trị (SubscriptionGuard). Gia hạn bằng key hoặc super-admin.
@@ -476,6 +476,24 @@ model AdminBatchRequest {
   createdAt DateTime @default(now())
 
   @@map("admin_batch_requests")
+}
+
+// Phiên đăng nhập (thiết bị) — cho giới hạn số ghế/thiết bị theo gói (maxSeats).
+// Mỗi refresh token = một phiên; thu hồi (revokedAt) khi vượt ghế hoặc đăng xuất.
+model UserSession {
+  id               String    @id @default(cuid())
+  userId           String
+  organizationId   String
+  refreshTokenHash String    @unique // sha256(refreshToken)
+  userAgent        String?
+  ip               String?
+  lastSeenAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  revokedAt        DateTime?
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("user_sessions")
 }
 
 model AppSetting {
