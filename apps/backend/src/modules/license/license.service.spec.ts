@@ -28,7 +28,7 @@ describe('license — key hạn dùng', () => {
         plan: null as string | null,
         activatedAt: null as Date | null,
       },
-      org: { id: 'o1', subscriptionExpiresAt: null as Date | null, plan: 'free' },
+      org: { id: 'o1', subscriptionExpiresAt: null as Date | null, plan: 'default' },
     };
     const prisma = {
       licenseKey: {

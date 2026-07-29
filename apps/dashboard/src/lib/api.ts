@@ -8,8 +8,34 @@ export function getToken(): string | null {
     : null;
 }
 
+// Mã MÁY để backend "đá nguyên máy cũ" khi đăng nhập máy mới. Nếu extension đã
+// cài, content-script bridge ghi sẵn 'cba_device_id' (dùng CHUNG với extension
+// -> dashboard + extension cùng máy sống chung). Nếu không, tự sinh một mã ổn định.
+export function getDeviceId(): string {
+  if (typeof window === 'undefined') return '';
+  let id = localStorage.getItem('cba_device_id');
+  if (!id) {
+    id =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('cba_device_id', id);
+  }
+  return id;
+}
+
 export function logout(): void {
+  // Fire-and-forget: báo backend thu hồi phiên (giải phóng chỗ theo hạn mức
+  // thiết bị của gói). Không chờ để đăng xuất luôn kể cả khi offline.
+  const rt = localStorage.getItem('refreshToken');
+  if (rt)
+    void fetch(`${BASE}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: rt }),
+    }).catch(() => {});
   localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
   window.location.href = '/login';
 }
 
@@ -30,6 +56,7 @@ function authHeaders(json = true): Record<string, string> {
   return {
     ...(json ? { 'Content-Type': 'application/json' } : {}),
     ...(t ? { Authorization: `Bearer ${t}` } : {}),
+    ...(typeof window !== 'undefined' ? { 'x-device-id': getDeviceId() } : {}),
   };
 }
 
@@ -40,10 +67,24 @@ function handle401(res: Response) {
   }
 }
 
+// Ném Error với thông báo của backend (NestJS trả { message }). message có thể là
+// chuỗi hoặc mảng chuỗi (validation). Rơi về "METHOD path -> status" nếu không đọc được.
+async function fail(res: Response, method: string, path: string): Promise<never> {
+  let msg = `${method} ${path} -> ${res.status}`;
+  try {
+    const body = (await res.json()) as { message?: string | string[] };
+    if (body?.message)
+      msg = Array.isArray(body.message) ? body.message.join(', ') : body.message;
+  } catch {
+    /* body không phải JSON -> giữ msg mặc định */
+  }
+  throw new Error(msg);
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
   handle401(res);
-  if (!res.ok) throw new Error(`GET ${path} -> ${res.status}`);
+  if (!res.ok) return fail(res, 'GET', path);
   return res.json();
 }
 
@@ -54,7 +95,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   handle401(res);
-  if (!res.ok) throw new Error(`POST ${path} -> ${res.status}`);
+  if (!res.ok) return fail(res, 'POST', path);
   return res.json();
 }
 
@@ -65,7 +106,7 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   handle401(res);
-  if (!res.ok) throw new Error(`PATCH ${path} -> ${res.status}`);
+  if (!res.ok) return fail(res, 'PATCH', path);
   return res.json();
 }
 
@@ -75,7 +116,7 @@ export async function apiDelete(path: string): Promise<void> {
     headers: authHeaders(),
   });
   handle401(res);
-  if (!res.ok) throw new Error(`DELETE ${path} -> ${res.status}`);
+  if (!res.ok) await fail(res, 'DELETE', path);
 }
 
 // Upload file (multipart) — cho import Excel.

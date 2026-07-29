@@ -26,6 +26,7 @@ export const TENANT_MODELS_SKIP = new Set([
   'Organization',
   'LicenseKey',
   'AdminBatchRequest',
+  'UserSession',
 ]);
 
 // Action Prisma dùng where UNIQUE — chèn thêm organizationId là hợp lệ nhờ tính

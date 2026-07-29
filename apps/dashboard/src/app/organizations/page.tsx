@@ -577,7 +577,7 @@ function MenuItem({ children, onClick, disabled, danger }: { children: React.Rea
 
 function CreateTenantModal({ onClose, onAdd }: { onClose: () => void; onAdd: (t: NewTenant) => void }) {
   const [name, setName] = useState('');
-  const [plan, setPlan] = useState('free');
+  const [plan, setPlan] = useState('default');
   const [expiresAt, setExpiresAt] = useState('');
   const [note, setNote] = useState('');
   const [fullName, setFullName] = useState('');

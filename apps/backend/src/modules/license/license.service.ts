@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { planFor } from '../../common/plans';
 
 const DAY_MS = 86_400_000;
 
@@ -109,8 +110,16 @@ export class LicenseService {
       select: { plan: true, isActive: true, subscriptionExpiresAt: true },
     });
     const exp = org?.subscriptionExpiresAt ?? null;
+    const plan = planFor(org?.plan);
     return {
-      plan: org?.plan ?? 'free',
+      plan: plan.key,
+      planLabel: plan.label,
+      limits: {
+        maxUsers: plan.maxUsers,
+        maxSeats: plan.maxSeats,
+        maxRooms: plan.maxRooms,
+        maxAiPerDay: plan.maxAiPerDay,
+      },
       isActive: org?.isActive ?? true,
       expiresAt: exp,
       daysLeft: exp ? Math.ceil((exp.getTime() - Date.now()) / DAY_MS) : null,

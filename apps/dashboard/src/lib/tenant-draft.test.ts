@@ -14,7 +14,7 @@ const T = (over: Partial<ServerTenant> = {}): ServerTenant => ({
   id: 'o1',
   name: 'An Bình',
   slug: 'an-binh',
-  plan: 'free',
+  plan: 'default',
   isActive: true,
   subscriptionExpiresAt: null,
   note: null,
@@ -32,11 +32,11 @@ describe('tenant-draft', () => {
   });
 
   it('đổi gói -> 1 change UPDATE_PLAN, cờ danger khi giảm gói', () => {
-    const up = buildChanges([T({ plan: 'free' })], { o1: { plan: 'pro' } }, []);
+    const up = buildChanges([T({ plan: 'default' })], { o1: { plan: 'pro' } }, []);
     expect(up).toHaveLength(1);
     expect(up[0].type).toBe('UPDATE_PLAN');
     expect(up[0].danger).toBeFalsy();
-    const down = buildChanges([T({ plan: 'pro' })], { o1: { plan: 'free' } }, []);
+    const down = buildChanges([T({ plan: 'pro' })], { o1: { plan: 'default' } }, []);
     expect(down[0].danger).toBe(true);
   });
 
@@ -72,7 +72,7 @@ describe('tenant-draft', () => {
 
   it('pending count chính xác gộp edit + tenant mới', () => {
     const n: NewTenant = {
-      tempId: 't1', name: 'X', plan: 'free', expiresAt: null, note: '',
+      tempId: 't1', name: 'X', plan: 'default', expiresAt: null, note: '',
       admin: { fullName: 'A', email: 'a@x.vn', phone: '', password: 'pw123456', mustChangePassword: true },
     };
     const list = buildChanges([T()], { o1: { plan: 'pro', addDays: 30 } }, [n]);
@@ -91,10 +91,10 @@ describe('tenant-draft', () => {
   });
 
   it('isDowngrade + randomPassword + mergeTenant', () => {
-    expect(isDowngrade('pro', 'free')).toBe(true);
-    expect(isDowngrade('free', 'pro')).toBe(false);
+    expect(isDowngrade('pro', 'default')).toBe(true);
+    expect(isDowngrade('default', 'pro')).toBe(false);
     expect(randomPassword(16)).toHaveLength(16);
-    expect(mergeTenant(T({ plan: 'free' }), { plan: 'pro' }).plan).toBe('pro');
+    expect(mergeTenant(T({ plan: 'default' }), { plan: 'pro' }).plan).toBe('pro');
     expect(mergeTenant(T(), { archive: true }).isActive).toBe(false);
   });
 });

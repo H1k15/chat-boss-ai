@@ -21,12 +21,19 @@ const nav = [
 // Khung có sidebar. Trang /login không dùng khung này (đứng riêng, không menu).
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  // Menu SaaS chỉ hiện cho SUPER_ADMIN (đọc role sau khi mount -> tránh lệch hydrate).
-  const [isSuper, setIsSuper] = useState(false);
-  useEffect(() => setIsSuper(getRole() === 'SUPER_ADMIN'), []);
-  const items = isSuper
-    ? [...nav, { href: '/organizations', label: '🏢 Nhà trọ (SaaS)' }]
-    : nav;
+  // Đọc role sau khi mount -> tránh lệch hydrate. SUPER_ADMIN thấy menu SaaS;
+  // ADMIN (chủ trọ) thấy menu quản lý nhân viên.
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => setRole(getRole()), []);
+  const items = [
+    ...nav,
+    ...(role === 'ADMIN'
+      ? [{ href: '/members', label: '👥 Nhân viên' }]
+      : []),
+    ...(role === 'SUPER_ADMIN'
+      ? [{ href: '/organizations', label: '🏢 Nhà trọ (SaaS)' }]
+      : []),
+  ];
   if (pathname === '/login') return <>{children}</>;
 
   return (

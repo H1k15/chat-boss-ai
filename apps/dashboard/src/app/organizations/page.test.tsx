@@ -13,7 +13,7 @@ const tenant = {
   id: 'o1',
   name: 'An Bình',
   slug: 'an-binh',
-  plan: 'free',
+  plan: 'default',
   isActive: true,
   subscriptionExpiresAt: null,
   note: null,
@@ -43,7 +43,7 @@ describe('Trang Quản lý nhà trọ', () => {
     await screen.findByText('An Bình');
     const planSelect = screen
       .getAllByRole('combobox')
-      .find((s) => (s as HTMLSelectElement).value === 'free')!;
+      .find((s) => (s as HTMLSelectElement).value === 'default')!;
     fireEvent.change(planSelect, { target: { value: 'pro' } });
     expect(api.apiPost).not.toHaveBeenCalled(); // không thực thi ngay
     expect(btn(/Lưu thay đổi \(1\)/).disabled).toBe(false);
@@ -54,7 +54,7 @@ describe('Trang Quản lý nhà trọ', () => {
     await screen.findByText('An Bình');
     const planSelect = screen
       .getAllByRole('combobox')
-      .find((s) => (s as HTMLSelectElement).value === 'free')!;
+      .find((s) => (s as HTMLSelectElement).value === 'default')!;
     fireEvent.change(planSelect, { target: { value: 'pro' } });
     expect(btn(/Lưu thay đổi \(1\)/).disabled).toBe(false);
     fireEvent.click(btn(/Hủy thay đổi/));

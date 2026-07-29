@@ -43,6 +43,16 @@ function roleLabel(r?: string): string {
         : r || 'Người dùng';
 }
 
+// Mã MÁY để backend "đá nguyên máy cũ" khi đăng nhập máy khác. Dùng CHUNG với
+// dashboard (bridge content-script ghi mã này vào localStorage dashboard).
+async function deviceId(): Promise<string> {
+  const { cbaMachineId } = await chrome.storage.local.get('cbaMachineId');
+  if (cbaMachineId) return cbaMachineId as string;
+  const id = crypto.randomUUID();
+  await chrome.storage.local.set({ cbaMachineId: id });
+  return id;
+}
+
 // Fetch có token (popup tự làm, không import api.ts để content.js luôn tự chứa).
 async function authFetch(path: string, init?: RequestInit): Promise<Response> {
   const { accessToken } = await chrome.storage.local.get('accessToken');
@@ -50,6 +60,7 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     ...init,
     headers: {
       'Content-Type': 'application/json',
+      'x-device-id': await deviceId(),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
   });
@@ -146,16 +157,20 @@ form?.addEventListener('submit', async (e) => {
   try {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-device-id': await deviceId(),
+      },
       body: JSON.stringify({ email, password }),
     });
     if (!res.ok) {
-      setText(
-        'err',
-        res.status === 401
-          ? 'Sai email hoặc mật khẩu.'
-          : `Đăng nhập thất bại (HTTP ${res.status}).`,
-      );
+      if (res.status === 401) {
+        setText('err', 'Sai email hoặc mật khẩu.');
+        return;
+      }
+      // Lỗi khác (vd: 403 vượt số thiết bị của Key) -> hiện thông báo của backend.
+      const j = (await res.json().catch(() => ({}))) as { message?: string };
+      setText('err', j.message || `Đăng nhập thất bại (HTTP ${res.status}).`);
       return;
     }
     const data = await res.json();
@@ -212,6 +227,18 @@ $('activate-btn')?.addEventListener('click', async () => {
 });
 
 $('logout-btn')?.addEventListener('click', async () => {
+  // Báo backend thu hồi phiên để giải phóng chỗ trong hạn mức thiết bị của gói.
+  const { refreshToken } = await chrome.storage.local.get('refreshToken');
+  if (refreshToken)
+    try {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+    } catch {
+      /* offline vẫn cho đăng xuất cục bộ */
+    }
   await chrome.storage.local.remove(['accessToken', 'refreshToken', 'user']);
   showLogin();
   toast('Đã đăng xuất');

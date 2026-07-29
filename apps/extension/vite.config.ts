@@ -31,6 +31,7 @@ export default defineConfig({
         content: resolve(__dirname, 'src/content/index.ts'),
         background: resolve(__dirname, 'src/background/index.ts'),
         popup: resolve(__dirname, 'src/popup/index.ts'),
+        bridge: resolve(__dirname, 'src/content/bridge.ts'),
       },
       output: {
         entryFileNames: '[name].js',

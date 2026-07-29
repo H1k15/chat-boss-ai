@@ -1,8 +1,18 @@
 import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from './jwt-auth.guard';
 import { AllowExpired } from '../../common/subscription.guard';
 import type { AuthenticatedRequest } from './authenticated-request';
+
+// Lấy thông tin thiết bị để gắn vào phiên (giới hạn số thiết bị theo gói).
+function sessionMeta(req: Request) {
+  const fwd = req.headers['x-forwarded-for'];
+  const ip = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(',')[0]?.trim() || req.ip;
+  const dev = req.headers['x-device-id'];
+  const deviceId = (Array.isArray(dev) ? dev[0] : dev)?.slice(0, 100) || undefined;
+  return { userAgent: req.headers['user-agent'], ip, deviceId };
+}
 
 @Controller('auth')
 export class AuthController {
@@ -10,8 +20,11 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  login(@Body() body: { email: string; password: string }) {
-    return this.auth.login(body.email, body.password);
+  login(
+    @Body() body: { email: string; password: string },
+    @Req() req: Request,
+  ) {
+    return this.auth.login(body.email, body.password, sessionMeta(req));
   }
 
   @Public()
@@ -26,11 +39,25 @@ export class AuthController {
     return this.auth.me(req.user.userId);
   }
 
-  // JWT là stateless nên đăng xuất chủ yếu là client tự xoá token. Endpoint
-  // này để client gọi cho nhất quán; thu hồi token thật cần danh sách chặn
-  // (denylist) — chưa dựng, ghi lại làm việc sau nếu cần bảo mật chặt hơn.
+  // Người dùng đã đăng nhập tự đổi mật khẩu (cả khi hết hạn gói).
+  @AllowExpired()
+  @Post('change-password')
+  changePassword(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { currentPassword: string; newPassword: string },
+  ) {
+    return this.auth.changePassword(
+      req.user.userId,
+      body.currentPassword,
+      body.newPassword,
+    );
+  }
+
+  // Đăng xuất: thu hồi phiên (UserSession) theo refreshToken để giải phóng chỗ
+  // trong hạn mức thiết bị của gói. Không có token thì chỉ trả ok (client tự xoá).
   @Post('logout')
-  logout() {
-    return { ok: true };
+  @Public()
+  logout(@Body() body: { refreshToken?: string }) {
+    return this.auth.logout(body?.refreshToken);
   }
 }
