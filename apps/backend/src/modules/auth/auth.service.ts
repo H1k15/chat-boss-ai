@@ -5,10 +5,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
-import { planFor } from '../../common/plans';
+import { planFor, MAX_SESSIONS_PER_USER } from '../../common/plans';
 
 interface SessionMeta {
   userAgent?: string;
@@ -41,10 +41,16 @@ export class AuthService {
       secret: process.env.JWT_ACCESS_SECRET,
       expiresIn: process.env.JWT_ACCESS_TTL || '15m',
     });
-    const refreshToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET,
-      expiresIn: process.env.JWT_REFRESH_TTL || '7d',
-    });
+    // jti ngẫu nhiên: hai lần đăng nhập cùng giây (dashboard + extension) nếu
+    // không có nó sẽ ký ra refresh token Y HỆT NHAU -> trùng refreshTokenHash
+    // (khóa duy nhất) khi 2 phiên cùng tồn tại. jti đảm bảo mỗi token là duy nhất.
+    const refreshToken = this.jwt.sign(
+      { ...payload, jti: randomUUID() },
+      {
+        secret: process.env.JWT_REFRESH_SECRET,
+        expiresIn: process.env.JWT_REFRESH_TTL || '7d',
+      },
+    );
 
     await this.createSession(user.id, user.organizationId, refreshToken, meta);
 
@@ -62,10 +68,13 @@ export class AuthService {
   }
 
   // Tạo phiên theo 2 quy tắc:
-  //  1) MỖI TÀI KHOẢN CHỈ 1 THIẾT BỊ: đăng nhập ở máy mới thu hồi mọi phiên cũ
-  //     CỦA CHÍNH tài khoản này (chuyển máy mượt, không bao giờ tự chặn mình).
-  //  2) TRẦN CỦA KEY = số tài khoản online cùng lúc (maxSeats). Khi một tài khoản
-  //     ĐANG offline đăng nhập mà org đã đạt trần -> KHÔNG đá ai, CHẶN đăng nhập.
+  //  1) MỖI TÀI KHOẢN ~ 1 MÁY: mỗi tài khoản chạy tối đa MAX_SESSIONS_PER_USER
+  //     phiên (dashboard + extension của cùng 1 máy). Đăng nhập vượt số này (mở
+  //     bề mặt ở máy mới) -> đá phiên CŨ NHẤT của chính tài khoản để nhường chỗ,
+  //     nên máy cũ bị đẩy ra dần. Việc đá này KHÔNG làm tăng tổng phiên của org.
+  //  2) TRẦN KEY = tổng số phiên đồng thời của org (maxSeats). Chỉ khi phiên mới
+  //     LÀM TĂNG tổng (tài khoản chưa đạt trần phiên của nó) mới xét: nếu tổng
+  //     phiên hiện tại đã >= maxSeats -> CHẶN, không đá ai.
   private async createSession(
     userId: string,
     organizationId: string,
@@ -78,32 +87,30 @@ export class AuthService {
     });
     const plan = planFor(org?.plan);
 
-    // Phiên cũ của CHÍNH tài khoản này (thường 0 hoặc 1 do quy tắc 1 thiết bị).
     const mine = await this.prisma.userSession.findMany({
       where: { organizationId, userId, revokedAt: null },
+      orderBy: { lastSeenAt: 'asc' }, // cũ nhất trước
       select: { id: true },
     });
 
-    // Quy tắc 2: chỉ xét trần khi tài khoản đang OFFLINE (chưa chiếm chỗ nào).
-    // Đăng nhập lại từ chính tài khoản đang online = chuyển máy -> không tính thêm.
-    if (plan.maxSeats != null && mine.length === 0) {
-      const online = await this.prisma.userSession.findMany({
-        where: { organizationId, revokedAt: null },
-        distinct: ['userId'],
-        select: { userId: true },
-      });
-      if (online.length >= plan.maxSeats)
-        throw new ForbiddenException(
-          `Vượt số thiết bị của Key: gói "${plan.label}" chỉ cho ${plan.maxSeats} tài khoản đăng nhập cùng lúc. Vui lòng đăng xuất một thiết bị khác rồi thử lại.`,
-        );
-    }
-
-    // Quy tắc 1: đá mọi phiên cũ của tài khoản này (giữ đúng 1 thiết bị).
-    if (mine.length)
+    if (mine.length >= MAX_SESSIONS_PER_USER) {
+      // Quy tắc 1: đã đủ số bề mặt/máy -> đá phiên cũ nhất để chừa 1 chỗ cho phiên
+      // mới (tổng phiên org không đổi -> không đụng trần Key).
+      const evict = mine.length - (MAX_SESSIONS_PER_USER - 1);
       await this.prisma.userSession.updateMany({
-        where: { id: { in: mine.map((s) => s.id) } },
+        where: { id: { in: mine.slice(0, evict).map((s) => s.id) } },
         data: { revokedAt: new Date() },
       });
+    } else if (plan.maxSeats != null) {
+      // Quy tắc 2: phiên mới làm TĂNG tổng phiên org -> ép trần Key.
+      const total = await this.prisma.userSession.count({
+        where: { organizationId, revokedAt: null },
+      });
+      if (total >= plan.maxSeats)
+        throw new ForbiddenException(
+          `Vượt số phiên của Key: gói "${plan.label}" chỉ cho ${plan.maxSeats} phiên đăng nhập cùng lúc. Vui lòng đăng xuất bớt một thiết bị/phiên khác rồi thử lại.`,
+        );
+    }
 
     await this.prisma.userSession.create({
       data: {

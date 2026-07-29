@@ -1,4 +1,10 @@
-import { PLANS, PLAN_KEYS, planFor, DEFAULT_PLAN } from './plans';
+import {
+  PLANS,
+  PLAN_KEYS,
+  planFor,
+  DEFAULT_PLAN,
+  MAX_SESSIONS_PER_USER,
+} from './plans';
 
 describe('plans — gói dịch vụ', () => {
   it('planFor: gói lạ/thiếu -> default', () => {
@@ -24,10 +30,16 @@ describe('plans — gói dịch vụ', () => {
     );
   });
 
-  it('maxSeats <= maxUsers (mỗi tài khoản 1 thiết bị -> không thể online quá số tài khoản)', () => {
+  it('maxUsers <= maxSeats <= maxUsers * MAX_SESSIONS_PER_USER (mỗi tài khoản ~1 máy, tối đa 2 bề mặt)', () => {
     for (const p of Object.values(PLANS)) {
-      if (p.maxSeats != null && p.maxUsers != null)
-        expect(p.maxSeats).toBeLessThanOrEqual(p.maxUsers);
+      if (p.maxSeats != null && p.maxUsers != null) {
+        // Mỗi tài khoản cần ít nhất 1 phiên -> maxSeats >= maxUsers.
+        expect(p.maxSeats).toBeGreaterThanOrEqual(p.maxUsers);
+        // Mỗi tài khoản tối đa MAX_SESSIONS_PER_USER phiên -> trần trên.
+        expect(p.maxSeats).toBeLessThanOrEqual(
+          p.maxUsers * MAX_SESSIONS_PER_USER,
+        );
+      }
     }
   });
 });
