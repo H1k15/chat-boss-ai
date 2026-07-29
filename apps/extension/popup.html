@@ -101,6 +101,9 @@
         margin: 16px 0;
       }
       .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+      .sub { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+      .sub.warn { color: #dc2626; font-weight: 600; }
+      .activate { margin-bottom: 12px; }
       button.ghost {
         width: 100%;
         padding: 9px;
@@ -166,7 +169,13 @@
         </div>
       </div>
       <div class="status"><span class="dot"></span> Đang hoạt động</div>
-      <button class="primary hidden" id="admin-btn" style="margin-top: 0">
+      <div id="sub-status" class="sub"></div>
+      <div class="activate">
+        <input id="license-key" placeholder="Nhập key gia hạn (CBAI-...)" autocomplete="off" />
+        <button class="primary" id="activate-btn" style="margin-top: 6px">Kích hoạt key</button>
+        <div id="activate-msg" class="err" style="margin-top: 4px"></div>
+      </div>
+      <button class="primary hidden" id="admin-btn" style="margin-top: 10px">
         🛠️ Mở trang quản trị
       </button>
       <button class="ghost" id="logout-btn" style="margin-top: 8px">Đăng xuất</button>

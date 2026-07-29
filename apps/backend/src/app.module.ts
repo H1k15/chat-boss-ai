@@ -22,7 +22,9 @@ import { SheetsModule } from './modules/sheets/sheets.module';
 import { AiConfigModule } from './modules/ai-config/ai-config.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { LicenseModule } from './modules/license/license.module';
 import { TenantContextInterceptor } from './common/tenant-context.interceptor';
+import { SubscriptionGuard } from './common/subscription.guard';
 
 @Module({
   imports: [
@@ -49,6 +51,7 @@ import { TenantContextInterceptor } from './common/tenant-context.interceptor';
     AiConfigModule,
     AdminModule,
     BillingModule,
+    LicenseModule,
   ],
   // Guard đăng ký toàn cục: mặc định MỌI route đều phải đăng nhập, trừ route
   // gắn @Public(). Thứ tự quan trọng — xác thực (JWT) phải chạy trước phân
@@ -56,6 +59,8 @@ import { TenantContextInterceptor } from './common/tenant-context.interceptor';
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    // Sau JWT: chặn org hết hạn / bị khoá (trừ @Public, @AllowExpired, super-admin).
+    { provide: APP_GUARD, useClass: SubscriptionGuard },
     // Chạy SAU guard (req.user đã có) -> đặt tenant context cho toàn request.
     { provide: APP_INTERCEPTOR, useClass: TenantContextInterceptor },
   ],

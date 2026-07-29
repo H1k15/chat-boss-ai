@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Public } from './jwt-auth.guard';
+import { AllowExpired } from '../../common/subscription.guard';
 import type { AuthenticatedRequest } from './authenticated-request';
 
 @Controller('auth')
@@ -19,6 +20,7 @@ export class AuthController {
     return this.auth.refresh(body.refreshToken);
   }
 
+  @AllowExpired()
   @Get('me')
   me(@Req() req: AuthenticatedRequest) {
     return this.auth.me(req.user.userId);

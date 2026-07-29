@@ -91,6 +91,33 @@ export class AdminService {
     );
   }
 
+  /** Đặt/cộng hạn dùng cho một nhà trọ. addDays: cộng thêm (nối tiếp nếu còn hạn);
+   *  expiresAt: đặt tuyệt đối; expiresAt=null: gỡ hạn (không giới hạn). */
+  async setExpiry(
+    id: string,
+    input: { addDays?: number; expiresAt?: string | null },
+  ) {
+    const org = await this.prisma.organization.findUnique({ where: { id } });
+    if (!org) throw new NotFoundException('Không tìm thấy nhà trọ');
+    let next: Date | null;
+    if (typeof input.addDays === 'number') {
+      const cur = org.subscriptionExpiresAt?.getTime() ?? 0;
+      const base = cur > Date.now() ? cur : Date.now();
+      next = new Date(base + input.addDays * 86_400_000);
+    } else if (input.expiresAt === null) {
+      next = null;
+    } else if (input.expiresAt) {
+      next = new Date(input.expiresAt);
+      if (isNaN(next.getTime())) throw new BadRequestException('Ngày không hợp lệ');
+    } else {
+      throw new BadRequestException('Cần addDays hoặc expiresAt');
+    }
+    return this.prisma.organization.update({
+      where: { id },
+      data: { subscriptionExpiresAt: next },
+    });
+  }
+
   /** Khoá / mở lại một nhà trọ (isActive). */
   async setActive(id: string, isActive: boolean) {
     if (!(await this.prisma.organization.findUnique({ where: { id } })))
