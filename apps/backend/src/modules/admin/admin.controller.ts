@@ -30,6 +30,14 @@ export class AdminController {
     return this.admin.setPlan(id, body.plan);
   }
 
+  @Patch(':id/subscription')
+  setExpiry(
+    @Param('id') id: string,
+    @Body() body: { addDays?: number; expiresAt?: string | null },
+  ) {
+    return this.admin.setExpiry(id, body);
+  }
+
   @Post(':id/users')
   addUser(
     @Param('id') id: string,

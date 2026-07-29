@@ -8,7 +8,17 @@ interface Org {
   slug: string;
   plan: string;
   isActive: boolean;
+  subscriptionExpiresAt: string | null;
   counts: { users: number; rooms: number; customers: number };
+}
+
+function expiryLabel(iso: string | null): { text: string; warn: boolean } {
+  if (!iso) return { text: 'Không giới hạn', warn: false };
+  const d = new Date(iso);
+  const days = Math.ceil((d.getTime() - Date.now()) / 86_400_000);
+  const date = d.toLocaleDateString('vi-VN');
+  if (days < 0) return { text: `Hết hạn (${date})`, warn: true };
+  return { text: `Còn ${days} ngày (${date})`, warn: days <= 7 };
 }
 
 export default function OrganizationsPage() {
@@ -76,6 +86,31 @@ export default function OrganizationsPage() {
     }
   }
 
+  async function extend(o: Org, addDays: number) {
+    try {
+      await apiPatch(`/admin/organizations/${o.id}/subscription`, { addDays });
+      await load();
+    } catch (e) {
+      setMsg('Lỗi gia hạn: ' + String(e));
+    }
+  }
+
+  async function genKeys() {
+    const days = Number(prompt('Số ngày mỗi key:', '30') || 0);
+    if (!days || days <= 0) return;
+    const count = Number(prompt('Số lượng key:', '1') || 1);
+    try {
+      const r = await apiPost<{ keys: string[] }>('/admin/licenses', {
+        durationDays: days,
+        count,
+      });
+      // Hiện MỘT LẦN để copy — backend không lưu key thô.
+      alert('Key đã sinh (lưu lại ngay, không xem lại được):\n\n' + r.keys.join('\n'));
+    } catch (e) {
+      setMsg('Lỗi sinh key: ' + String(e));
+    }
+  }
+
   if (allowed === false)
     return <p className="text-red-600">Chỉ super-admin mới xem được trang này.</p>;
 
@@ -123,6 +158,15 @@ export default function OrganizationsPage() {
         {msg && <span className="ml-3 text-sm text-gray-600">{msg}</span>}
       </form>
 
+      <div className="mb-6">
+        <button
+          onClick={genKeys}
+          className="text-sm border rounded px-3 py-2 hover:bg-gray-50"
+        >
+          🔑 Sinh key bán / gia hạn
+        </button>
+      </div>
+
       {/* Danh sách */}
       {loading ? (
         <p className="text-gray-500">Đang tải...</p>
@@ -133,6 +177,7 @@ export default function OrganizationsPage() {
               <tr>
                 <th className="p-3">Nhà trọ</th>
                 <th className="p-3">Gói</th>
+                <th className="p-3">Hạn dùng</th>
                 <th className="p-3">NV</th>
                 <th className="p-3">Phòng</th>
                 <th className="p-3">Khách</th>
@@ -158,6 +203,27 @@ export default function OrganizationsPage() {
                       <option value="unlimited">Không giới hạn</option>
                     </select>
                   </td>
+                  <td className="p-3">
+                    {(() => {
+                      const e = expiryLabel(o.subscriptionExpiresAt);
+                      return (
+                        <div className={e.warn ? 'text-red-600' : 'text-gray-700'}>
+                          {e.text}
+                        </div>
+                      );
+                    })()}
+                    <div className="mt-1 flex gap-1">
+                      {[30, 90, 365].map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => extend(o, d)}
+                          className="text-xs border rounded px-2 py-0.5 hover:bg-gray-50"
+                        >
+                          +{d}
+                        </button>
+                      ))}
+                    </div>
+                  </td>
                   <td className="p-3">{o.counts.users}</td>
                   <td className="p-3">{o.counts.rooms}</td>
                   <td className="p-3">{o.counts.customers}</td>
@@ -182,7 +248,7 @@ export default function OrganizationsPage() {
               ))}
               {orgs.length === 0 && (
                 <tr>
-                  <td className="p-3 text-gray-400" colSpan={7}>
+                  <td className="p-3 text-gray-400" colSpan={8}>
                     Chưa có nhà trọ nào.
                   </td>
                 </tr>

@@ -43,6 +43,52 @@ function roleLabel(r?: string): string {
         : r || 'Người dùng';
 }
 
+// Fetch có token (popup tự làm, không import api.ts để content.js luôn tự chứa).
+async function authFetch(path: string, init?: RequestInit): Promise<Response> {
+  const { accessToken } = await chrome.storage.local.get('accessToken');
+  return fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+  });
+}
+
+// Hiện trạng thái hạn dùng (còn N ngày / đã hết hạn) trên thẻ tài khoản.
+async function loadSubscription(): Promise<void> {
+  const el = $('sub-status');
+  if (!el) return;
+  try {
+    const res = await authFetch('/license/status');
+    if (!res.ok) {
+      el.textContent = '';
+      return;
+    }
+    const s = (await res.json()) as {
+      plan: string;
+      expiresAt: string | null;
+      daysLeft: number | null;
+      expired: boolean;
+    };
+    if (s.expiresAt == null) {
+      el.textContent = `Gói: ${s.plan} · không giới hạn`;
+      el.className = 'sub';
+      return;
+    }
+    const d = new Date(s.expiresAt).toLocaleDateString('vi-VN');
+    if (s.expired) {
+      el.textContent = `⚠️ Đã hết hạn (${d}) — nhập key để gia hạn`;
+      el.className = 'sub warn';
+    } else {
+      el.textContent = `Gói: ${s.plan} · còn ${s.daysLeft} ngày (đến ${d})`;
+      el.className = (s.daysLeft ?? 99) <= 7 ? 'sub warn' : 'sub';
+    }
+  } catch {
+    el.textContent = '';
+  }
+}
+
 // Ẩn form đăng nhập, hiện thẻ tài khoản với thông tin người đang đăng nhập.
 function showAccount(user: StoredUser): void {
   const name = user.fullName || user.email || 'Người dùng';
@@ -55,6 +101,7 @@ function showAccount(user: StoredUser): void {
   $('admin-btn')?.classList.toggle('hidden', user.role !== 'ADMIN');
   $('login-view')?.classList.add('hidden');
   $('account-view')?.classList.remove('hidden');
+  void loadSubscription();
 }
 
 function showLogin(): void {
@@ -132,6 +179,31 @@ form?.addEventListener('submit', async (e) => {
 // Mở dashboard quản trị ở tab mới (chỉ ADMIN mới thấy nút này).
 $('admin-btn')?.addEventListener('click', () => {
   void chrome.tabs.create({ url: DASHBOARD_URL });
+});
+
+// Kích hoạt key gia hạn.
+$('activate-btn')?.addEventListener('click', async () => {
+  const input = $('license-key') as HTMLInputElement | null;
+  const key = input?.value.trim();
+  if (!key) return;
+  setText('activate-msg', 'Đang kích hoạt...');
+  try {
+    const res = await authFetch('/license/activate', {
+      method: 'POST',
+      body: JSON.stringify({ key }),
+    });
+    if (!res.ok) {
+      const j = (await res.json().catch(() => ({}))) as { message?: string };
+      setText('activate-msg', j.message || 'Kích hoạt thất bại');
+      return;
+    }
+    if (input) input.value = '';
+    setText('activate-msg', '');
+    toast('Gia hạn thành công');
+    void loadSubscription();
+  } catch {
+    setText('activate-msg', 'Không gọi được backend');
+  }
 });
 
 $('logout-btn')?.addEventListener('click', async () => {

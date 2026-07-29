@@ -22,7 +22,7 @@ export function getOrgId(): string | undefined {
 // Model KHÔNG gắn org -> middleware bỏ qua. Chỉ còn Organization (bảng gốc quản
 // lý org). AppSetting nay đã per-org (Đợt 3) nên KHÔNG loại trừ nữa: middleware
 // tự set organizationId khi tạo, và bổ sung lọc org khi đọc.
-export const TENANT_MODELS_SKIP = new Set(['Organization']);
+export const TENANT_MODELS_SKIP = new Set(['Organization', 'LicenseKey']);
 
 // Action Prisma dùng where UNIQUE — chèn thêm organizationId là hợp lệ nhờ tính
 // năng extendedWhereUnique (GA từ Prisma 5): where có 1 khoá unique + lọc phụ.

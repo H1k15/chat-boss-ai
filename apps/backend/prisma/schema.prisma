@@ -102,6 +102,9 @@ model Organization {
   slug      String   @unique
   plan      String   @default("free")
   isActive  Boolean  @default(true)
+  // Hạn dùng dịch vụ. null = không giới hạn (org nội bộ/chủ). Quá hạn -> backend
+  // chặn các endpoint giá trị (SubscriptionGuard). Gia hạn bằng key hoặc super-admin.
+  subscriptionExpiresAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -443,6 +446,24 @@ model ImportBatch {
 // secret ở đây (bot token vẫn ở .env) — bảng này có thể lộ qua API cấu hình.
 // Multi-tenant Đợt 3: cấu hình runtime TÁCH THEO ORG (khoá kép organizationId+key).
 // Kể cả geocode_cache cũng per-org (đồng nhất; chấp nhận geocode lại giữa các org).
+// Key kích hoạt/gia hạn dịch vụ (bán trả trước). KHÔNG lưu key thô — chỉ hash.
+// Bảng TOÀN CỤC (super-admin sinh, org nào cũng có thể kích hoạt) -> không gắn org
+// scope; org kích hoạt lưu ở activatedByOrg.
+model LicenseKey {
+  id             String    @id @default(cuid())
+  keyHash        String    @unique // sha256(key) — tra bằng hash, không lộ key
+  keyPrefix      String // vài ký tự đầu để hiển thị/nhận diện
+  durationDays   Int // số ngày cộng vào hạn khi kích hoạt
+  plan           String? // gói áp dụng khi kích hoạt (tuỳ chọn)
+  note           String?
+  activatedAt    DateTime?
+  activatedByOrg String? // id org đã kích hoạt
+  createdAt      DateTime  @default(now())
+
+  @@index([activatedByOrg])
+  @@map("license_keys")
+}
+
 model AppSetting {
   organizationId String       @default("org_seed_default")
   organization   Organization @relation(fields: [organizationId], references: [id])
