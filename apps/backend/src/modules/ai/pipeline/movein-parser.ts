@@ -70,7 +70,7 @@ export function parseMoveIn(text: string, now: Date = new Date()): MoveInParse {
   }
 
   // Ngày cụ thể: "ngay 20", "20/8", "15 thang 8"
-  const dmy = t.match(/(\d{1,2})\s*[\/\-]\s*(\d{1,2})(?:\s*[\/\-]\s*(\d{2,4}))?/);
+  const dmy = t.match(/(\d{1,2})\s*[/-]\s*(\d{1,2})(?:\s*[/-]\s*(\d{2,4}))?/);
   if (dmy) {
     const day = Number(dmy[1]);
     const month = Number(dmy[2]);

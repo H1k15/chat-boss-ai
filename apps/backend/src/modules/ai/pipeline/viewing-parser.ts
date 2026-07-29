@@ -17,7 +17,7 @@ function parseDay(t: string, now: Date): Date | null {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   if (/ngay kia/.test(t))
     return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
-  const dmy = t.match(/(\d{1,2})\s*[\/\-]\s*(\d{1,2})/);
+  const dmy = t.match(/(\d{1,2})\s*[/-]\s*(\d{1,2})/);
   if (dmy) {
     const d = Number(dmy[1]);
     const m = Number(dmy[2]);

@@ -105,6 +105,8 @@ model Organization {
   // Hạn dùng dịch vụ. null = không giới hạn (org nội bộ/chủ). Quá hạn -> backend
   // chặn các endpoint giá trị (SubscriptionGuard). Gia hạn bằng key hoặc super-admin.
   subscriptionExpiresAt DateTime?
+  note      String? // ghi chú quản trị về nhà trọ
+  archivedAt DateTime? // lưu trữ (ẩn khỏi danh sách chính); dọn/purge sau
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -131,8 +133,10 @@ model User {
   email        String
   passwordHash String
   fullName     String
+  phone        String?
   role         UserRole @default(STAFF)
   isActive     Boolean  @default(true)
+  mustChangePassword Boolean @default(false) // buộc đổi mật khẩu lần đăng nhập đầu
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -462,6 +466,16 @@ model LicenseKey {
 
   @@index([activatedByOrg])
   @@map("license_keys")
+}
+
+// Idempotency cho batch apply-changes: lưu kết quả theo requestId để không xử lý
+// hai lần (double-submit / retry). Bảng toàn cục.
+model AdminBatchRequest {
+  requestId String   @id
+  result    Json
+  createdAt DateTime @default(now())
+
+  @@map("admin_batch_requests")
 }
 
 model AppSetting {
