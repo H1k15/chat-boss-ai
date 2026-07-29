@@ -97,11 +97,16 @@ function showAccount(user: StoredUser): void {
   setText('acct-role', roleLabel(user.role));
   const av = $('avatar');
   if (av) av.textContent = (name.trim()[0] || '?').toUpperCase();
-  // Nút vào trang quản trị chỉ hiện với tài khoản ADMIN.
-  $('admin-btn')?.classList.toggle('hidden', user.role !== 'ADMIN');
+  const isSuper = user.role === 'SUPER_ADMIN';
+  // Nút vào trang quản trị: cho SUPER_ADMIN (quản trị SaaS) và ADMIN (quản trị nhà trọ).
+  $('admin-btn')?.classList.toggle('hidden', !(isSuper || user.role === 'ADMIN'));
+  // Kích hoạt key + trạng thái gói là của tenant (admin/nhân viên) — KHÔNG dành cho
+  // super-admin (chủ SaaS, không phải khách trả phí).
+  $('sub-status')?.classList.toggle('hidden', isSuper);
+  $('activate-box')?.classList.toggle('hidden', isSuper);
   $('login-view')?.classList.add('hidden');
   $('account-view')?.classList.remove('hidden');
-  void loadSubscription();
+  if (!isSuper) void loadSubscription();
 }
 
 function showLogin(): void {
