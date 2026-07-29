@@ -1,4 +1,4 @@
-import { ConversationTurn, CustomerIntent, NextAction } from '@cba/shared';
+import { CustomerIntent, NextAction } from '@cba/shared';
 import { deaccent } from '../../../common/vietnamese';
 import { CoreSlot, SlotProfile } from './slots';
 
