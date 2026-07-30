@@ -10,7 +10,7 @@ import {
   NotifyEvent,
 } from '@cba/shared';
 import { Customer, Prisma } from '@prisma/client';
-import { appSettingKey } from '../../common/tenant';
+import { appSettingKey, currentOrgId } from '../../common/tenant';
 import { LimitsService } from '../billing/limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IntentClassifierService } from './pipeline/intent-classifier.service';
@@ -22,6 +22,17 @@ import { OrchestratorService } from './pipeline/orchestrator.service';
 import { parseViewingDateTime } from './pipeline/viewing-parser';
 import { TelegramService } from '../telegram/telegram.service';
 import { AppointmentsService } from '../appointments/appointments.service';
+
+// Câu gold pair có DÙNG ĐƯỢC làm ví dụ giọng văn không: đủ ngắn, có tín hiệu
+// nhà trọ, và KHÔNG phải nhiễu (tin tuyển dụng/xuất khẩu lao động lọt vào thread).
+const GOLD_RENTAL =
+  /phòng|thuê|cọc|xem|giá|khép kín|gác|điện|nước|m2|mét|trống|dọn|ở ghép|căn/i;
+const GOLD_NOISE =
+  /tuyển|ứng viên|lương|xuất khẩu lao động|đơn hàng|visa|ca làm|nhân sự|đi làm/i;
+export function isUsableGoldReply(text?: string | null): boolean {
+  const t = (text ?? '').trim();
+  return t.length >= 6 && t.length <= 200 && GOLD_RENTAL.test(t) && !GOLD_NOISE.test(t);
+}
 
 // Orchestrator: chạy pipeline 5 bước và ghép kết quả.
 @Injectable()
@@ -72,13 +83,18 @@ export class AiService {
 
     // [4] ORCHESTRATOR (TẤT ĐỊNH) quyết stage + next_action + câu hỏi kế tiếp.
     // Model chỉ DIỄN ĐẠT (không tự quyết bước, không tự chọn phòng).
-    const adminTemplates = await this.loadTemplates(intent);
+    // Mẫu câu admin + VÍ DỤ GIỌNG từ lịch sử chat thật (gold pair FB). Gold đứng
+    // trước để được ưu tiên khi orchestrator cắt còn 3.
+    const [adminTemplates, goldExamples] = await Promise.all([
+      this.loadTemplates(intent),
+      this.loadGoldExamples(extracted.area),
+    ]);
     const plan = this.orchestrator.plan({
       extracted,
       intent,
       conversation: req.conversation,
       matchedRooms,
-      adminTemplates,
+      adminTemplates: [...goldExamples, ...adminTemplates],
       now: new Date(),
     });
     const withHint = (): string =>
@@ -531,6 +547,43 @@ export class AiService {
       });
       return rows.map((r) => r.content);
     } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Lấy vài câu trả lời THẬT của chủ trọ (gold pair nhập từ lịch sử Facebook,
+   * meta.source='fb_history_import') làm VÍ DỤ GIỌNG VĂN cho model bắt chước.
+   *
+   * Bơm qua đúng kênh adminTemplates -> prompt đã dặn "bắt chước giọng, KHÔNG
+   * chép số liệu", và SafetyGuard vẫn đối chiếu giá/SĐT/mã phòng với dữ liệu
+   * thật -> an toàn, không bịa. Ưu tiên ví dụ có nhắc tới khu khách đang hỏi.
+   * Cắt ngắn + ít (2) để không phình prompt/token.
+   */
+  private async loadGoldExamples(area?: string, limit = 2): Promise<string[]> {
+    try {
+      const org = currentOrgId();
+      if (!org) return [];
+      // Lấy dư (limit*5) rồi lọc ở code: câu trả lời phải có tín hiệu nhà trọ
+      // (bỏ câu lạc đề như tin tuyển dụng lọt vào thread). ILIKE khu chỉ để ưu tiên.
+      const take = limit * 5;
+      const rows = area
+        ? await this.prisma.$queryRaw<{ t: string | null }[]>`
+            SELECT meta->>'finalText' AS t FROM activity_logs
+            WHERE action = 'AI_SEND' AND meta->>'source' = 'fb_history_import'
+              AND "organizationId" = ${org} AND meta::text ILIKE ${'%' + area + '%'}
+            ORDER BY "createdAt" DESC LIMIT ${take}`
+        : await this.prisma.$queryRaw<{ t: string | null }[]>`
+            SELECT meta->>'finalText' AS t FROM activity_logs
+            WHERE action = 'AI_SEND' AND meta->>'source' = 'fb_history_import'
+              AND "organizationId" = ${org}
+            ORDER BY "createdAt" DESC LIMIT ${take}`;
+      return rows
+        .map((r) => (r.t ?? '').trim())
+        .filter((t) => isUsableGoldReply(t))
+        .slice(0, limit);
+    } catch (e) {
+      this.logger.warn(`loadGoldExamples lỗi: ${e}`);
       return [];
     }
   }
