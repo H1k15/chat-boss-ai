@@ -5,6 +5,7 @@ import {
   parseFbHtmlThread,
   parseFbHtmlTime,
   isNoiseContent,
+  extractLivePair,
 } from './fb-history';
 
 describe('fb-history — xử lý export Facebook DYI', () => {
@@ -111,5 +112,39 @@ describe('fb-history — xử lý export Facebook DYI', () => {
     expect(pairs.length).toBe(1);
     expect(pairs[0].reply).toBe('Mình gửi bạn ảnh phòng ạ');
     expect(pairs[0].conversation.at(-1)?.text).toBe('còn phòng không ạ');
+  });
+
+  describe('extractLivePair — thu thụ động câu nhân viên gửi', () => {
+    it('câu cuối là NV + có khách trước + hợp lệ -> cặp {ngữ cảnh, reply}', () => {
+      const r = extractLivePair([
+        { role: 'customer', text: 'còn phòng khu Cầu Giấy không ạ' },
+        { role: 'staff', text: 'dạ còn phòng trống, giá 3 triệu ạ' },
+      ]);
+      expect(r).not.toBeNull();
+      expect(r!.finalText).toBe('dạ còn phòng trống, giá 3 triệu ạ');
+      expect(r!.conversation).toHaveLength(1);
+      expect(r!.conversation[0].role).toBe('customer');
+    });
+
+    it('câu cuối KHÔNG phải NV -> null', () => {
+      expect(
+        extractLivePair([{ role: 'customer', text: 'còn phòng không ạ' }]),
+      ).toBeNull();
+    });
+
+    it('chưa có lượt khách -> null', () => {
+      expect(
+        extractLivePair([{ role: 'staff', text: 'còn phòng trống giá 3 triệu' }]),
+      ).toBeNull();
+    });
+
+    it('câu NV nhiễu (chào hỏi/không tín hiệu nhà trọ) -> null', () => {
+      expect(
+        extractLivePair([
+          { role: 'customer', text: 'alo' },
+          { role: 'staff', text: 'dạ vâng ạ' },
+        ]),
+      ).toBeNull();
+    });
   });
 });

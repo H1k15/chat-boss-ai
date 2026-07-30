@@ -2,6 +2,7 @@ import { Body, Controller, Post, Req } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { AiSuggestDto } from './dto/ai-suggest.dto';
 import { AiFeedbackDto } from './dto/ai-feedback.dto';
+import { AiCaptureDto } from './dto/ai-capture.dto';
 import { AiExtractDto, AiClassifyCommentDto } from './dto/ai-extract.dto';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 
@@ -19,6 +20,12 @@ export class AiController {
   @Post('feedback')
   feedback(@Body() dto: AiFeedbackDto, @Req() req: AuthenticatedRequest) {
     return this.ai.recordSent(req.user.userId, dto);
+  }
+
+  // Thu THỤ ĐỘNG: nhân viên gửi tin (không bấm Gợi ý) -> vẫn ghi cặp vàng.
+  @Post('capture')
+  capture(@Body() dto: AiCaptureDto, @Req() req: AuthenticatedRequest) {
+    return this.ai.captureLive(req.user.userId, dto);
   }
 
   // Chỉ trích xuất thông tin khách (không sinh câu trả lời).
