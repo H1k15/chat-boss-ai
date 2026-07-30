@@ -21,6 +21,15 @@ Quy tắc:
   "tuần sau") mà không suy ra được ngày cụ thể thì trả null.
 - Chỉ lấy thông tin do KHÁCH nói. Đừng lấy nhầm thông tin nhân viên đưa ra.`;
 
+// Prompt HỢP NHẤT: vừa phân loại ý định vừa trích xuất trong MỘT lời gọi LLM
+// (tiết kiệm 1 system prompt + 1 bản hội thoại so với gọi tách). Tái dùng nguyên
+// EXTRACT_SYSTEM để quy tắc trích xuất không bị lệch giữa 2 đường.
+export const UNDERSTAND_SYSTEM = `Bạn ĐỌC hội thoại tiếng Việt của khách thuê phòng trọ và trả về MỘT JSON gồm trường "intent" và các trường thông tin trích xuất.
+
+PHÂN LOẠI "intent": chọn ĐÚNG MỘT nhãn phù hợp nhất với tin nhắn CUỐI CÙNG của khách.
+
+${EXTRACT_SYSTEM}`;
+
 // Prompt sinh câu trả lời — KHOÁ CHẶT để AI không bịa thông tin phòng.
 // Đây là tuyến phòng thủ thứ nhất; SafetyGuard là tuyến thứ hai (đối chiếu
 // lại từng con số trong câu trả lời với dữ liệu phòng thật).
@@ -83,9 +92,27 @@ export const CONSTRAINED_REPLY_SYSTEM = `Bạn là bộ máy DIỄN ĐẠT tin n
 - Tiếng Việt tự nhiên, lịch sự, chủ động, NGẮN GỌN (không quá max_words từ), tối đa 3 đoạn ngắn.
 - Chỉ trả về NỘI DUNG TIN NHẮN gửi khách, không giải thích nội bộ.`;
 
-/** Định dạng hội thoại thành text cho LLM đọc. Dùng chung cả 3 bước. */
-export function formatConversation(conversation: ConversationTurn[]): string {
-  return conversation
+// Số lượt hội thoại gửi cho LLM (tiết kiệm token trên chat dài; chat ngắn giữ
+// nguyên). Dữ kiện bền (khu/ngân sách...) đã do CODE quét full text + CRM `known`
+// giữ, nên cắt bớt lượt CŨ hầu như không ảnh hưởng chất lượng.
+//  - Ý định: chỉ cần vài lượt gần nhất (phân loại tin CUỐI của khách).
+//  - Trích xuất: rộng hơn một chút để bắt ngữ cảnh (tên, yêu cầu) nói gần đây.
+export const INTENT_CONV_TURNS = 6;
+export const EXTRACT_CONV_TURNS = 12;
+
+/**
+ * Định dạng hội thoại thành text cho LLM đọc. Dùng chung cả 3 bước.
+ * `maxTurns` (nếu có): chỉ giữ N lượt GẦN NHẤT để giảm token; bỏ trống = full.
+ */
+export function formatConversation(
+  conversation: ConversationTurn[],
+  maxTurns?: number,
+): string {
+  const turns =
+    maxTurns && conversation.length > maxTurns
+      ? conversation.slice(-maxTurns)
+      : conversation;
+  return turns
     .map((t) => `${t.role === 'customer' ? 'Khách' : 'NV'}: ${t.text}`)
     .join('\n');
 }

@@ -5,7 +5,11 @@ import {
   LlmProvider,
   strictObject,
 } from '../llm/llm-provider.interface';
-import { INTENT_SYSTEM, formatConversation } from '../prompts';
+import {
+  INTENT_SYSTEM,
+  INTENT_CONV_TURNS,
+  formatConversation,
+} from '../prompts';
 import { PHONE_REGEX } from './info-extractor.service';
 
 // [1] Phân loại ý định khách.
@@ -13,6 +17,14 @@ import { PHONE_REGEX } from './info-extractor.service';
 @Injectable()
 export class IntentClassifierService {
   constructor(@Inject(LLM_PROVIDER) private readonly llm: LlmProvider) {}
+
+  /**
+   * Phân loại TẤT ĐỊNH (regex) từ tin cuối của khách — không gọi LLM. Trả null
+   * khi không chắc (để caller dùng nhánh LLM / lời gọi hợp nhất understand()).
+   */
+  fastClassify(lastCustomerText: string): CustomerIntent | null {
+    return this.fastPath(lastCustomerText || '');
+  }
 
   async classify(conversation: ConversationTurn[]): Promise<CustomerIntent> {
     const lastCustomer = [...conversation]
@@ -27,7 +39,9 @@ export class IntentClassifierService {
     const result = await this.llm.completeJson<{ intent: CustomerIntent }>({
       system: INTENT_SYSTEM,
       schemaName: 'customer_intent',
-      messages: [{ role: 'user', content: formatConversation(conversation) }],
+      messages: [
+        { role: 'user', content: formatConversation(conversation, INTENT_CONV_TURNS) },
+      ],
       jsonSchema: strictObject({
         intent: { type: 'string', enum: Object.values(CustomerIntent) },
       }),
