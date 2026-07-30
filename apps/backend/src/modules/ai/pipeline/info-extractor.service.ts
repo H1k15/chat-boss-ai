@@ -7,7 +7,11 @@ import {
   strictObject,
   stripNulls,
 } from '../llm/llm-provider.interface';
-import { EXTRACT_SYSTEM, formatConversation } from '../prompts';
+import {
+  EXTRACT_SYSTEM,
+  EXTRACT_CONV_TURNS,
+  formatConversation,
+} from '../prompts';
 import { deaccent } from '../../../common/vietnamese';
 import { detectAreaFromText } from './area-detect';
 import { parseDistanceQuery } from '../../geocode/distance-parser';
@@ -68,7 +72,12 @@ export class InfoExtractorService {
     const raw = await this.llm.completeJson<Record<string, unknown>>({
       system: EXTRACT_SYSTEM,
       schemaName: 'customer_info',
-      messages: [{ role: 'user', content: formatConversation(conversation) }],
+      // Chỉ gửi N lượt gần nhất cho LLM (token). Các slot bền (ngân sách/khu/
+      // thời gian/số người) vẫn được CODE quét trên TOÀN BỘ customerText bên dưới,
+      // nên cắt lượt cũ ở đây không làm mất dữ kiện quan trọng.
+      messages: [
+        { role: 'user', content: formatConversation(conversation, EXTRACT_CONV_TURNS) },
+      ],
       jsonSchema: strictObject({
         name: nullable({ type: 'string' }),
         area: nullable({ type: 'string' }),
