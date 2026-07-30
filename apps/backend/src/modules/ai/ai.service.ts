@@ -22,17 +22,7 @@ import { OrchestratorService } from './pipeline/orchestrator.service';
 import { parseViewingDateTime } from './pipeline/viewing-parser';
 import { TelegramService } from '../telegram/telegram.service';
 import { AppointmentsService } from '../appointments/appointments.service';
-
-// Câu gold pair có DÙNG ĐƯỢC làm ví dụ giọng văn không: đủ ngắn, có tín hiệu
-// nhà trọ, và KHÔNG phải nhiễu (tin tuyển dụng/xuất khẩu lao động lọt vào thread).
-const GOLD_RENTAL =
-  /phòng|thuê|cọc|xem|giá|khép kín|gác|điện|nước|m2|mét|trống|dọn|ở ghép|căn/i;
-const GOLD_NOISE =
-  /tuyển|ứng viên|lương|xuất khẩu lao động|đơn hàng|visa|ca làm|nhân sự|đi làm/i;
-export function isUsableGoldReply(text?: string | null): boolean {
-  const t = (text ?? '').trim();
-  return t.length >= 6 && t.length <= 200 && GOLD_RENTAL.test(t) && !GOLD_NOISE.test(t);
-}
+import { isUsableGoldReply } from '../training/fb-history';
 
 // Orchestrator: chạy pipeline 5 bước và ghép kết quả.
 @Injectable()

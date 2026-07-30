@@ -18,6 +18,7 @@
 import { PrismaClient } from '@prisma/client';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { isUsableGoldReply } from '../src/modules/training/fb-history';
 
 const prisma = new PrismaClient();
 
@@ -33,6 +34,11 @@ interface SendMeta {
   finalText?: string;
   chosenIndex?: number | null;
   edited?: boolean | null;
+  // Gold pair nhập từ lịch sử Facebook (import:fb) — KHÔNG có suggestionLogId,
+  // mà mang sẵn ngữ cảnh hội thoại + câu chủ trọ trả lời thật.
+  source?: string;
+  thread?: string;
+  conversation?: { role: 'customer' | 'staff'; text: string }[];
 }
 
 function buildUserPrompt(m: SuggestMeta): string {
@@ -60,9 +66,40 @@ async function main() {
   let asIs = 0; // chèn gợi ý rồi gửi nguyên
   let edited = 0; // chèn rồi sửa
   let ownWritten = 0; // bỏ gợi ý, tự gõ
+  let fbHistory = 0; // gold pair nhập từ lịch sử Facebook (đạt chất lượng)
+  let fbSkipped = 0; // gold pair FB bị loại vì nhiễu/lạc đề
 
   for (const send of sends) {
     const sm = (send.meta as SendMeta | null) ?? {};
+
+    // Gold pair FB: dựng messages đa lượt từ ngữ cảnh + câu chủ trọ (đích học).
+    // customer -> user, staff -> assistant; câu cuối là finalText cần học.
+    if (sm.source === 'fb_history_import') {
+      const conv = Array.isArray(sm.conversation) ? sm.conversation : [];
+      const finalText = sm.finalText?.trim();
+      if (!finalText || !conv.length) continue;
+      // Bỏ câu nhiễu (tuyển dụng/chat cá nhân lọt vào thread) -> corpus sạch hơn.
+      if (!isUsableGoldReply(finalText)) {
+        fbSkipped++;
+        continue;
+      }
+      fbHistory++;
+      lines.push(
+        JSON.stringify({
+          source: 'fb_history',
+          thread: sm.thread ?? null,
+          messages: [
+            ...conv.map((t) => ({
+              role: t.role === 'customer' ? 'user' : 'assistant',
+              content: t.text,
+            })),
+            { role: 'assistant', content: finalText },
+          ],
+        }),
+      );
+      continue;
+    }
+
     const suggest = sm.suggestionLogId
       ? suggestById.get(sm.suggestionLogId)
       : undefined;
@@ -106,6 +143,8 @@ async function main() {
     'Dùng nguyên (AI đúng)': asIs,
     'Sửa lại (AI gần đúng)': edited,
     'Tự gõ (AI vô dụng)': ownWritten,
+    'Lịch sử Facebook (đạt)': fbHistory,
+    'Lịch sử Facebook (loại nhiễu)': fbSkipped,
   });
 }
 

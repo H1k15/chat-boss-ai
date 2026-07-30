@@ -126,6 +126,18 @@ export function isNoiseContent(s?: string): boolean {
   return NOISE_PATTERNS.some((re) => re.test(t));
 }
 
+// Câu gold pair có DÙNG ĐƯỢC làm dữ liệu học/ví dụ giọng không: đủ ngắn, có tín
+// hiệu nhà trọ, KHÔNG phải nhiễu (tuyển dụng/XKLĐ hay chat cá nhân lọt vào thread).
+// Dùng chung: few-shot lúc suggest (ai.service) + lọc corpus fine-tune (export).
+const GOLD_RENTAL =
+  /phòng|thuê|cọc|xem|giá|khép kín|gác|điện|nước|m2|mét|trống|dọn|ở ghép|căn/i;
+const GOLD_NOISE =
+  /tuyển|ứng viên|lương|xuất khẩu lao động|đơn hàng|visa|ca làm|nhân sự|đi làm|bấm like|comment|inbox riêng/i;
+export function isUsableGoldReply(text?: string | null): boolean {
+  const t = (text ?? '').trim();
+  return t.length >= 6 && t.length <= 200 && GOLD_RENTAL.test(t) && !GOLD_NOISE.test(t);
+}
+
 export interface GoldTurn {
   role: 'customer' | 'staff';
   text: string;
