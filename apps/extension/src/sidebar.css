@@ -52,6 +52,20 @@
   line-height: 1;
   font-size: 14px;
 }
+/* Toggle "tự động gợi ý" (⚡) trong thanh tiêu đề. */
+#cba-sidebar .cba-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+#cba-sidebar .cba-auto input {
+  cursor: pointer;
+  margin: 0;
+}
 /* Thu gọn: chỉ còn thanh tiêu đề (ẩn nội dung + nút thao tác). */
 #cba-sidebar.cba-collapsed .cba-body,
 #cba-sidebar.cba-collapsed .cba-actions {

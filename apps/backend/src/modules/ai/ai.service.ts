@@ -22,7 +22,7 @@ import { OrchestratorService } from './pipeline/orchestrator.service';
 import { parseViewingDateTime } from './pipeline/viewing-parser';
 import { TelegramService } from '../telegram/telegram.service';
 import { AppointmentsService } from '../appointments/appointments.service';
-import { isUsableGoldReply } from '../training/fb-history';
+import { isUsableGoldReply, extractLivePair } from '../training/fb-history';
 
 // Orchestrator: chạy pipeline 5 bước và ghép kết quả.
 @Injectable()
@@ -266,6 +266,51 @@ export class AiService {
       return { ok: false };
     }
   }
+
+  /**
+   * THU THỤ ĐỘNG (live capture): nhân viên gửi tin mà KHÔNG bấm "Gợi ý" -> vẫn
+   * ghi lại {ngữ cảnh khách -> câu nhân viên} làm cặp vàng (source='live_capture',
+   * cùng khuôn với gold pair FB nên export:finetune + few-shot dùng được ngay).
+   * Chỉ ghi cặp hợp lệ (câu cuối của NV + có lượt khách + không nhiễu). Chống
+   * trùng bằng khoá băm câu gửi trong ~5s (Enter và click-nút có thể cùng bắn).
+   */
+  async captureLive(
+    userId: string | undefined,
+    dto: { conversation: { role: 'customer' | 'staff'; text: string }[] },
+  ): Promise<{ ok: boolean; captured: boolean }> {
+    const pair = extractLivePair(dto.conversation ?? []);
+    if (!pair) return { ok: true, captured: false };
+    try {
+      const key = `${userId ?? ''}:${pair.finalText}`;
+      const now = Date.now();
+      const seen = this.recentCaptures.get(key);
+      if (seen && now - seen < 5000) return { ok: true, captured: false };
+      this.recentCaptures.set(key, now);
+      // Dọn bộ nhớ chống trùng (giữ nhỏ).
+      if (this.recentCaptures.size > 200) {
+        for (const [k, t] of this.recentCaptures)
+          if (now - t > 30000) this.recentCaptures.delete(k);
+      }
+
+      await this.prisma.activityLog.create({
+        data: {
+          userId: userId ?? null,
+          action: 'AI_SEND',
+          meta: {
+            source: 'live_capture',
+            aiSuggested: false,
+            conversation: pair.conversation,
+            finalText: pair.finalText,
+          } as unknown as Prisma.InputJsonObject,
+        },
+      });
+      return { ok: true, captured: true };
+    } catch (e) {
+      this.logger.warn(`Không ghi được live_capture: ${e}`);
+      return { ok: false, captured: false };
+    }
+  }
+  private readonly recentCaptures = new Map<string, number>();
 
   /**
    * Đính link ảnh/video/vị trí THẬT vào cuối mỗi câu gợi ý khi khách CÓ Ý hỏi —
@@ -560,12 +605,12 @@ export class AiService {
       const rows = area
         ? await this.prisma.$queryRaw<{ t: string | null }[]>`
             SELECT meta->>'finalText' AS t FROM activity_logs
-            WHERE action = 'AI_SEND' AND meta->>'source' = 'fb_history_import'
+            WHERE action = 'AI_SEND' AND meta->>'source' IN ('fb_history_import', 'live_capture')
               AND "organizationId" = ${org} AND meta::text ILIKE ${'%' + area + '%'}
             ORDER BY "createdAt" DESC LIMIT ${take}`
         : await this.prisma.$queryRaw<{ t: string | null }[]>`
             SELECT meta->>'finalText' AS t FROM activity_logs
-            WHERE action = 'AI_SEND' AND meta->>'source' = 'fb_history_import'
+            WHERE action = 'AI_SEND' AND meta->>'source' IN ('fb_history_import', 'live_capture')
               AND "organizationId" = ${org}
             ORDER BY "createdAt" DESC LIMIT ${take}`;
       return rows
