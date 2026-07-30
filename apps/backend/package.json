@@ -12,6 +12,7 @@
     "seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts",
     "seed:templates": "dotenv -e ../../.env -- ts-node prisma/seed-templates.ts",
     "export:finetune": "dotenv -e ../../.env -- ts-node prisma/export-finetune.ts",
+    "split:finetune": "ts-node prisma/split-finetune.ts",
     "analyze:logs": "dotenv -e ../../.env -- ts-node prisma/analyze-logs.ts",
     "verify:tenant": "dotenv -e ../../.env -- ts-node prisma/verify-tenant-isolation.ts",
     "import:fb": "dotenv -e ../../.env -- ts-node prisma/import-fb-history.ts",
