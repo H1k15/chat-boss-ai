@@ -32,6 +32,100 @@ export interface FbThread {
   thread_path?: string;
 }
 
+// ---- Đọc export định dạng HTML (khi người dùng chọn HTML thay vì JSON) ----
+// FB DYI HTML: mỗi tin là <section class="_a6-g"> gồm <h2 class="_a6-h">Người gửi</h2>,
+// <div class="_a6-p">nội dung</div>, <div class="_a72d">thời gian</div>.
+
+// Bỏ thẻ HTML + giải một số entity + gộp khoảng trắng.
+function stripHtml(s: string): string {
+  return (s || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&#(\d+);/g, (_, d: string) => String.fromCharCode(+d))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// "Mar 06, 2024 6:59:46 pm" -> ms (giờ địa phương, đủ để sắp thứ tự trong thread).
+export function parseFbHtmlTime(s: string): number | undefined {
+  if (!s) return undefined;
+  const ms = new Date(s.replace(/\b([ap])m\b/i, (x) => x.toUpperCase())).getTime();
+  return Number.isFinite(ms) ? ms : undefined;
+}
+
+// Lấy inner HTML của <div ... class="...marker..."> đầu tiên bằng đếm độ sâu div
+// (nội dung tin có div lồng nhau).
+function firstDivInnerByClass(html: string, marker: string): string {
+  const open = new RegExp(`<div\\b[^>]*class="[^"]*${marker}[^"]*"[^>]*>`, 'i').exec(html);
+  if (!open) return '';
+  const start = open.index + open[0].length;
+  const tag = /<(\/?)div\b[^>]*>/g;
+  tag.lastIndex = start;
+  let depth = 1;
+  let t: RegExpExecArray | null;
+  while ((t = tag.exec(html))) {
+    depth += t[1] ? -1 : 1;
+    if (depth === 0) return html.slice(start, t.index);
+  }
+  return html.slice(start);
+}
+
+/** Parse một file message_*.html của FB DYI -> FbThread (cùng shape với JSON). */
+export function parseFbHtmlThread(html: string): FbThread {
+  const titleRaw = stripHtml(/<title>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? '');
+  const title = fixMojibake(titleRaw.replace(/^participants:\s*/i, '')) || undefined;
+  const blocks = html.split(/class="_a6-g"/).slice(1); // mỗi khối = 1 tin
+  const messages: FbMessage[] = [];
+  for (const b of blocks) {
+    const sender = fixMojibake(stripHtml(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i.exec(b)?.[1] ?? ''));
+    const content = fixMojibake(stripHtml(firstDivInnerByClass(b, '_a6-p')));
+    const timeText = stripHtml(
+      /<div\b[^>]*class="[^"]*_a72d[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(b)?.[1] ?? '',
+    );
+    messages.push({
+      sender_name: sender || undefined,
+      content: content || undefined,
+      timestamp_ms: parseFbHtmlTime(timeText),
+    });
+  }
+  return { title, messages };
+}
+
+// Tin "hệ thống"/boilerplate do Facebook chèn (không phải người gõ) -> loại khỏi
+// gold pair để tránh gán nhầm thành câu nhân viên.
+const NOISE_PATTERNS: RegExp[] = [
+  /you can now message and call each other/i,
+  /you are now connected on messenger/i,
+  /sent an attachment/i,
+  /sent a photo/i,
+  /sent a sticker/i,
+  /sent a link/i,
+  /sent a voice message/i,
+  /(started|missed|ended) (a |your |the )?(video )?call/i,
+  /\bcalled you\b/i,
+  /reacted .*(to your message|to a message)/i,
+  /named the (group|conversation)/i,
+  /set (the|your|his|her|their) nickname/i,
+  /set the (emoji|chat theme|theme|photo)/i,
+  /changed the (group|chat) (photo|name|theme)/i,
+  /(left|joined) the group/i,
+  /added .* to the (group|conversation)/i,
+  /removed .* from the (group|conversation)/i,
+  /waved (hello )?at/i,
+  /poll:/i,
+  /liked a message/i,
+];
+export function isNoiseContent(s?: string): boolean {
+  if (!s) return true;
+  const t = s.trim();
+  if (!t) return true;
+  return NOISE_PATTERNS.some((re) => re.test(t));
+}
+
 export interface GoldTurn {
   role: 'customer' | 'staff';
   text: string;
@@ -73,7 +167,7 @@ export function buildGoldPairs(
   const staff = staffName;
   // FB DYI xếp tin mới nhất trước -> đảo về thứ tự thời gian.
   const msgs = [...(thread.messages ?? [])]
-    .filter((m) => typeof m.content === 'string' && m.content.trim())
+    .filter((m) => typeof m.content === 'string' && !isNoiseContent(m.content))
     .sort((a, b) => (a.timestamp_ms ?? 0) - (b.timestamp_ms ?? 0));
 
   const pairs: GoldPair[] = [];

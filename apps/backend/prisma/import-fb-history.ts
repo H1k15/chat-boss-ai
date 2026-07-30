@@ -19,6 +19,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import {
   buildGoldPairs,
   guessStaffName,
+  parseFbHtmlThread,
   FbThread,
 } from '../src/modules/training/fb-history';
 
@@ -32,7 +33,25 @@ const root = process.argv[2];
 const staffArg = arg('--staff');
 const orgId = arg('--org') || DEFAULT_ORG_ID;
 const dry = process.argv.includes('--dry');
+const rentalOnly = process.argv.includes('--rental');
 const max = Number(arg('--max') || 0);
+
+// Tín hiệu "hội thoại tư vấn nhà trọ". Dùng khi --rental để loại thread mua hàng/
+// chat cá nhân (nơi chủ tài khoản đóng vai KHÁCH -> gold pair sai vai, gây nhiễu).
+const RENTAL_TERMS = [
+  'nhà trọ', 'phòng trọ', 'thuê phòng', 'còn phòng', 'phòng trống', 'xem phòng',
+  'giá phòng', 'tiền phòng', 'tiền cọc', 'đặt cọc', 'điện nước', 'ở ghép',
+  'khép kín', 'gác lửng', 'gác xép', 'chung cư mini', 'ký túc', 'dọn vào',
+  'đặt phòng', 'thuê trọ', 'mét vuông', 'wc riêng', 'vệ sinh khép kín',
+];
+function isRentalThread(t: FbThread): boolean {
+  const text = (t.messages ?? [])
+    .map((m) => (m.content ?? '').toLowerCase())
+    .join(' \n ');
+  let hits = 0;
+  for (const term of RENTAL_TERMS) if (text.includes(term)) hits++;
+  return hits >= 2; // cần ≥2 tín hiệu để chắc là hội thoại nhà trọ
+}
 
 // Duyệt đệ quy, gom các message_*.json theo thư mục (thread bị chia nhiều file).
 function findThreadDirs(dir: string, out: Map<string, string[]>): void {
@@ -51,7 +70,7 @@ function findThreadDirs(dir: string, out: Map<string, string[]>): void {
       continue;
     }
     if (st.isDirectory()) findThreadDirs(p, out);
-    else if (/^message_\d+\.json$/i.test(e) && /messages/i.test(dir)) {
+    else if (/^message_\d+\.(json|html)$/i.test(e) && /messages/i.test(dir)) {
       const list = out.get(dir) ?? [];
       list.push(p);
       out.set(dir, list);
@@ -63,7 +82,11 @@ function loadThread(files: string[]): FbThread {
   const merged: FbThread = { messages: [] };
   for (const f of files) {
     try {
-      const j = JSON.parse(readFileSync(f, 'utf8')) as FbThread;
+      const raw = readFileSync(f, 'utf8');
+      // Định dạng HTML (người dùng chọn HTML thay vì JSON) parse riêng.
+      const j = /\.html$/i.test(f)
+        ? parseFbHtmlThread(raw)
+        : (JSON.parse(raw) as FbThread);
       if (!merged.title && j.title) merged.title = j.title;
       if (!merged.participants && j.participants) merged.participants = j.participants;
       if (Array.isArray(j.messages)) merged.messages!.push(...j.messages);
@@ -82,9 +105,15 @@ async function main() {
   }
   const dirMap = new Map<string, string[]>();
   findThreadDirs(root, dirMap);
-  const threads = [...dirMap.values()].map(loadThread).filter((t) => t.messages?.length);
+  let threads = [...dirMap.values()].map(loadThread).filter((t) => t.messages?.length);
   // eslint-disable-next-line no-console
   console.log(`Tìm thấy ${threads.length} hội thoại.`);
+  if (rentalOnly) {
+    const before = threads.length;
+    threads = threads.filter(isRentalThread);
+    // eslint-disable-next-line no-console
+    console.log(`--rental: giữ ${threads.length}/${before} hội thoại có tín hiệu nhà trọ.`);
+  }
   if (!threads.length) {
     console.log('Không có hội thoại nào (kiểm tra đường dẫn có thư mục messages/inbox).');
     process.exit(0);
