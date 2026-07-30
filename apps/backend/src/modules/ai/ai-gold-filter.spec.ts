@@ -1,4 +1,4 @@
-import { isUsableGoldReply } from './ai.service';
+import { isUsableGoldReply } from '../training/fb-history';
 
 // Lọc câu gold pair (FB) trước khi bơm làm ví dụ giọng văn cho suggest.
 describe('isUsableGoldReply — lọc ví dụ gold pair', () => {
