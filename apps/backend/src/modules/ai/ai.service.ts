@@ -56,12 +56,14 @@ export class AiService {
       : null;
     const known = customer ? this.toExtractedInfo(customer) : undefined;
 
-    // [1] Ý định và [2] trích xuất chạy song song — hai bước độc lập nhau,
-    // gọi tuần tự chỉ làm nhân viên phải chờ thêm một vòng gọi model.
-    const [intent, extracted] = await Promise.all([
-      this.intent.classify(req.conversation),
-      this.extractor.extract(req.conversation, known),
-    ]);
+    // [1+2] HỢP NHẤT ý định + trích xuất trong MỘT lời gọi LLM (tiết kiệm token).
+    // fastPath (regex tất định) quyết ý định cho phần lớn ca -> KHÔNG cần LLM
+    // đoán intent; understand() vẫn phải chạy để trích xuất, và trả kèm intent
+    // dùng khi fastPath không chắc. Tổng: tối đa 1 lời gọi (trước là 1–2).
+    const fastIntent = this.intent.fastClassify(this.lastCustomerText(req) ?? '');
+    const understood = await this.extractor.understand(req.conversation, known);
+    const intent = fastIntent ?? understood.intent ?? CustomerIntent.OTHER;
+    const extracted = understood.extracted;
 
     // [3] Lọc phòng (thuần logic — nguồn sự thật duy nhất về phòng). Nếu khách
     // hỏi theo khoảng cách, matcher geocode điểm mốc + lọc bán kính (Haversine).

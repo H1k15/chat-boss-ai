@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ConversationTurn, ExtractedInfo } from '@cba/shared';
+import { ConversationTurn, CustomerIntent, ExtractedInfo } from '@cba/shared';
 import {
   LLM_PROVIDER,
   LlmProvider,
@@ -10,6 +10,7 @@ import {
 import {
   EXTRACT_SYSTEM,
   EXTRACT_CONV_TURNS,
+  UNDERSTAND_SYSTEM,
   formatConversation,
 } from '../prompts';
 import { deaccent } from '../../../common/vietnamese';
@@ -41,6 +42,20 @@ export const REQUIREMENT_CODES = [
   'thu_cung',
 ] as const;
 
+// Các trường trích xuất dùng chung cho cả extract() và understand() (JSON schema).
+const EXTRACT_FIELDS = {
+  name: nullable({ type: 'string' }),
+  area: nullable({ type: 'string' }),
+  budgetMin: nullable({ type: 'integer' }),
+  budgetMax: nullable({ type: 'integer' }),
+  peopleCount: nullable({ type: 'integer' }),
+  moveInDate: nullable({ type: 'string' }),
+  requirements: nullable({
+    type: 'array',
+    items: { type: 'string', enum: [...REQUIREMENT_CODES] },
+  }),
+} as const;
+
 // [2] Trích xuất thông tin khách.
 // SĐT dùng regex (không giao cho LLM để tránh sai số). Phần còn lại dùng LLM.
 @Injectable()
@@ -61,14 +76,6 @@ export class InfoExtractorService {
     conversation: ConversationTurn[],
     known?: ExtractedInfo,
   ): Promise<ExtractedInfo> {
-    // Chỉ dò SĐT trong lời KHÁCH — nếu quét cả lượt nhân viên thì số hotline
-    // nhân viên gửi đi sẽ bị lưu ngược lại thành SĐT của khách.
-    const customerText = conversation
-      .filter((t) => t.role === 'customer')
-      .map((t) => t.text)
-      .join('\n');
-    const phone = this.extractPhone(customerText);
-
     const raw = await this.llm.completeJson<Record<string, unknown>>({
       system: EXTRACT_SYSTEM,
       schemaName: 'customer_info',
@@ -78,22 +85,61 @@ export class InfoExtractorService {
       messages: [
         { role: 'user', content: formatConversation(conversation, EXTRACT_CONV_TURNS) },
       ],
+      jsonSchema: strictObject({ ...EXTRACT_FIELDS }),
+      maxTokens: 512,
+    });
+    return this.refine(raw, conversation, known);
+  }
+
+  /**
+   * HỢP NHẤT: một lời gọi LLM vừa phân loại ý định vừa trích xuất (tiết kiệm 1
+   * system prompt + 1 bản hội thoại so với gọi tách). Intent do LLM đoán ở đây
+   * CHỈ dùng khi fastPath (regex tất định) không quyết được — xem AiService.
+   */
+  async understand(
+    conversation: ConversationTurn[],
+    known?: ExtractedInfo,
+  ): Promise<{ intent?: CustomerIntent; extracted: ExtractedInfo }> {
+    const raw = await this.llm.completeJson<Record<string, unknown>>({
+      system: UNDERSTAND_SYSTEM,
+      schemaName: 'customer_understanding',
+      messages: [
+        { role: 'user', content: formatConversation(conversation, EXTRACT_CONV_TURNS) },
+      ],
       jsonSchema: strictObject({
-        name: nullable({ type: 'string' }),
-        area: nullable({ type: 'string' }),
-        budgetMin: nullable({ type: 'integer' }),
-        budgetMax: nullable({ type: 'integer' }),
-        peopleCount: nullable({ type: 'integer' }),
-        moveInDate: nullable({ type: 'string' }),
-        requirements: nullable({
-          type: 'array',
-          items: { type: 'string', enum: [...REQUIREMENT_CODES] },
-        }),
+        intent: { type: 'string', enum: Object.values(CustomerIntent) },
+        ...EXTRACT_FIELDS,
       }),
       maxTokens: 512,
     });
+    const { intent: rawIntent, ...rest } = raw;
+    const intent = Object.values(CustomerIntent).includes(
+      rawIntent as CustomerIntent,
+    )
+      ? (rawIntent as CustomerIntent)
+      : undefined;
+    return { intent, extracted: this.refine(rest, conversation, known) };
+  }
 
-    const fromLlm = stripNulls(raw) as ExtractedInfo;
+  /**
+   * Hậu xử lý TẤT ĐỊNH kết quả LLM: dò SĐT/khu/ngân sách/thời gian/số người bằng
+   * CODE trên TOÀN BỘ lời khách (không phụ thuộc cửa sổ đã cắt), rồi merge với
+   * dữ liệu đã biết. Dùng chung cho cả extract() và understand().
+   */
+  private refine(
+    rawLlm: Record<string, unknown>,
+    conversation: ConversationTurn[],
+    known?: ExtractedInfo,
+  ): ExtractedInfo {
+    // Chỉ dò SĐT trong lời KHÁCH — nếu quét cả lượt nhân viên thì số hotline
+    // nhân viên gửi đi sẽ bị lưu ngược lại thành SĐT của khách.
+    const customerText = conversation
+      .filter((t) => t.role === 'customer')
+      .map((t) => t.text)
+      .join('\n');
+    const phone = this.extractPhone(customerText);
+
+    const fromLlm = stripNulls(rawLlm) as ExtractedInfo;
     // Lưới đỡ: LLM đôi khi bỏ sót khu ("khu Phú Diễn" -> null) hoặc trả về giá
     // trị RÁC ("3km", "2 triệu"). Loại rác rồi dò khu bằng CODE trên câu khách.
     // Ưu tiên khu ở LƯỢT KHÁCH MỚI NHẤT: khách đổi khu ("thôi chuyển qua Mỹ

@@ -21,6 +21,15 @@ Quy tắc:
   "tuần sau") mà không suy ra được ngày cụ thể thì trả null.
 - Chỉ lấy thông tin do KHÁCH nói. Đừng lấy nhầm thông tin nhân viên đưa ra.`;
 
+// Prompt HỢP NHẤT: vừa phân loại ý định vừa trích xuất trong MỘT lời gọi LLM
+// (tiết kiệm 1 system prompt + 1 bản hội thoại so với gọi tách). Tái dùng nguyên
+// EXTRACT_SYSTEM để quy tắc trích xuất không bị lệch giữa 2 đường.
+export const UNDERSTAND_SYSTEM = `Bạn ĐỌC hội thoại tiếng Việt của khách thuê phòng trọ và trả về MỘT JSON gồm trường "intent" và các trường thông tin trích xuất.
+
+PHÂN LOẠI "intent": chọn ĐÚNG MỘT nhãn phù hợp nhất với tin nhắn CUỐI CÙNG của khách.
+
+${EXTRACT_SYSTEM}`;
+
 // Prompt sinh câu trả lời — KHOÁ CHẶT để AI không bịa thông tin phòng.
 // Đây là tuyến phòng thủ thứ nhất; SafetyGuard là tuyến thứ hai (đối chiếu
 // lại từng con số trong câu trả lời với dữ liệu phòng thật).

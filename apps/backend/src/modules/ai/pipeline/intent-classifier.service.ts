@@ -18,6 +18,14 @@ import { PHONE_REGEX } from './info-extractor.service';
 export class IntentClassifierService {
   constructor(@Inject(LLM_PROVIDER) private readonly llm: LlmProvider) {}
 
+  /**
+   * Phân loại TẤT ĐỊNH (regex) từ tin cuối của khách — không gọi LLM. Trả null
+   * khi không chắc (để caller dùng nhánh LLM / lời gọi hợp nhất understand()).
+   */
+  fastClassify(lastCustomerText: string): CustomerIntent | null {
+    return this.fastPath(lastCustomerText || '');
+  }
+
   async classify(conversation: ConversationTurn[]): Promise<CustomerIntent> {
     const lastCustomer = [...conversation]
       .reverse()
