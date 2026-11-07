@@ -7,6 +7,23 @@ import { setActiveSuggestion, markInserted } from './feedback';
 let root: HTMLElement | null = null;
 let launcher: HTMLElement | null = null;
 
+// Bật/tắt "tự động gợi ý" (mặc định TẮT — tránh tốn hạn mức AI ngoài ý muốn).
+// Giữ trong bộ nhớ để observer đọc đồng bộ; lưu chrome.storage để nhớ qua lần tải.
+let autoOn = false;
+const AUTO_KEY = 'cbaAutoSuggest';
+export function autoSuggestEnabled(): boolean {
+  return autoOn;
+}
+
+// Gợi ý hiện tại (để phím tắt Alt+1/2/3 chèn nhanh).
+let currentSuggestions: string[] = [];
+export function insertSuggestionByIndex(i: number): void {
+  const s = currentSuggestions[i];
+  if (s == null) return;
+  insertIntoComposer(s);
+  markInserted(i);
+}
+
 // Trạng thái panel (vị trí + thu gọn + ẩn) lưu trong chrome.storage.local để
 // nhớ qua các lần tải lại trang. Nhân viên kéo panel ra chỗ không che nội dung
 // FB một lần là xong, lần sau vẫn ở đó.
@@ -27,6 +44,7 @@ export function mountSidebar(): HTMLElement {
       <span class="cba-title">🏠 Chat Boss AI</span>
       <div class="cba-ctrls">
         <button id="cba-refresh" title="Lấy gợi ý">Gợi ý trả lời</button>
+        <label class="cba-auto" title="Tự động gợi ý khi có tin khách mới (tốn hạn mức AI/ngày)"><input type="checkbox" id="cba-auto"/>⚡</label>
         <button id="cba-min" class="cba-icon" title="Thu gọn/mở rộng">–</button>
         <button id="cba-hide" class="cba-icon" title="Ẩn (thu về nút tròn)">✕</button>
       </div>
@@ -46,6 +64,27 @@ export function mountSidebar(): HTMLElement {
   document
     .getElementById('cba-hide')
     ?.addEventListener('click', () => setHidden(true));
+
+  // Toggle "tự động gợi ý": khôi phục trạng thái + lưu khi đổi.
+  const auto = document.getElementById('cba-auto') as HTMLInputElement | null;
+  if (auto) {
+    try {
+      void chrome.storage.local.get(AUTO_KEY).then((g) => {
+        autoOn = !!g[AUTO_KEY];
+        auto.checked = autoOn;
+      });
+    } catch {
+      /* ngoài context extension */
+    }
+    auto.addEventListener('change', () => {
+      autoOn = auto.checked;
+      try {
+        void chrome.storage.local.set({ [AUTO_KEY]: autoOn });
+      } catch {
+        /* bỏ qua */
+      }
+    });
+  }
 
   void restorePanelState();
   return root;
@@ -93,8 +132,8 @@ function enableDrag(panel: HTMLElement, handle: HTMLElement): void {
   let dragging = false;
 
   handle.addEventListener('pointerdown', (e) => {
-    // Bấm vào nút (gợi ý/thu gọn/ẩn) thì KHÔNG kéo — để nút hoạt động bình thường.
-    if ((e.target as HTMLElement).closest('button')) return;
+    // Bấm vào nút / ô chọn (gợi ý/thu gọn/ẩn/tự động) thì KHÔNG kéo.
+    if ((e.target as HTMLElement).closest('button,input,label')) return;
     const r = panel.getBoundingClientRect();
     // Chuyển sang định vị theo left/top (bỏ neo phải) để kéo tự do.
     panel.style.left = `${r.left}px`;
@@ -198,6 +237,7 @@ export function renderSuggestions(res: AiSuggestResponse) {
 
   // Ghi nhớ lần gợi ý này để khi nhân viên gửi thì ghép được cặp dữ liệu.
   setActiveSuggestion(res.suggestionLogId, res.suggestions);
+  currentSuggestions = res.suggestions; // cho phím tắt Alt+1/2/3
 
   const rooms = res.matchedRooms
     .map(

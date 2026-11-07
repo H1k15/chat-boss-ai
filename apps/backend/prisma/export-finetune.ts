@@ -72,9 +72,9 @@ async function main() {
   for (const send of sends) {
     const sm = (send.meta as SendMeta | null) ?? {};
 
-    // Gold pair FB: dựng messages đa lượt từ ngữ cảnh + câu chủ trọ (đích học).
-    // customer -> user, staff -> assistant; câu cuối là finalText cần học.
-    if (sm.source === 'fb_history_import') {
+    // Gold pair FB (import) HOẶC thu thụ động (live_capture): dựng messages đa
+    // lượt từ ngữ cảnh + câu chủ trọ (đích học). customer->user, staff->assistant.
+    if (sm.source === 'fb_history_import' || sm.source === 'live_capture') {
       const conv = Array.isArray(sm.conversation) ? sm.conversation : [];
       const finalText = sm.finalText?.trim();
       if (!finalText || !conv.length) continue;
@@ -143,8 +143,8 @@ async function main() {
     'Dùng nguyên (AI đúng)': asIs,
     'Sửa lại (AI gần đúng)': edited,
     'Tự gõ (AI vô dụng)': ownWritten,
-    'Lịch sử Facebook (đạt)': fbHistory,
-    'Lịch sử Facebook (loại nhiễu)': fbSkipped,
+    'FB import + thu thụ động (đạt)': fbHistory,
+    'Loại nhiễu': fbSkipped,
   });
 }
 

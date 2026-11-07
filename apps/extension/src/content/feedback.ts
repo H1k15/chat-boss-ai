@@ -1,4 +1,5 @@
-import { aiFeedback } from '../api';
+import { aiFeedback, aiCapture } from '../api';
+import { readConversation } from './reader';
 import { DEFAULT_SELECTORS } from './selectors';
 
 // Ghép câu nhân viên thực sự gửi với lần AI đề xuất (suggestionLogId), để gom
@@ -24,25 +25,40 @@ export function markInserted(index: number): void {
   if (active) active.insertedIndex = index;
 }
 
-// Nhân viên gửi tin: đọc câu cuối trong ô soạn, so với gợi ý để biết có sửa
-// không, rồi báo backend. Mỗi lần gợi ý chỉ ghi một lần.
+// Chống ghi trùng khi Enter và click-nút cùng bắn (hoặc gửi lại nhanh).
+let lastText = '';
+let lastAt = 0;
+
+// Nhân viên gửi tin:
+//  - CÓ gợi ý active (đã bấm "Gợi ý") -> ghi cặp có nhãn (AI đề xuất vs người gửi).
+//  - KHÔNG có gợi ý -> THU THỤ ĐỘNG: đọc hội thoại + câu vừa gửi làm cặp vàng.
 function onSend(finalText: string): void {
   const text = finalText.trim();
-  if (!active || !text) return;
+  if (!text) return;
+  const now = Date.now();
+  if (text === lastText && now - lastAt < 5000) return; // dedup
+  lastText = text;
+  lastAt = now;
 
-  const idx = active.insertedIndex;
-  const chosen = idx != null ? active.suggestions[idx] : undefined;
-  // Chèn gợi ý rồi gửi y nguyên -> edited=false. Chèn rồi sửa, hoặc tự gõ câu
-  // khác (không chèn gợi ý nào) -> edited=true.
-  const edited = chosen != null ? text !== chosen.trim() : true;
+  if (active) {
+    const idx = active.insertedIndex;
+    const chosen = idx != null ? active.suggestions[idx] : undefined;
+    // Chèn gợi ý rồi gửi y nguyên -> edited=false. Chèn rồi sửa, hoặc tự gõ câu
+    // khác (không chèn gợi ý nào) -> edited=true.
+    const edited = chosen != null ? text !== chosen.trim() : true;
+    void aiFeedback({
+      suggestionLogId: active.logId,
+      finalText: text,
+      chosenIndex: idx,
+      edited,
+    });
+    active = null; // đã ghi cho lần gợi ý này
+    return;
+  }
 
-  void aiFeedback({
-    suggestionLogId: active.logId,
-    finalText: text,
-    chosenIndex: idx,
-    edited,
-  });
-  active = null; // đã ghi cho lần gợi ý này
+  // Thu thụ động: hội thoại đang hiển thị (chưa gồm câu vừa gửi) + câu NV.
+  const context = readConversation();
+  if (context.length) void aiCapture([...context, { role: 'staff', text }]);
 }
 
 // Lắng nghe phím gửi trong ô soạn. Trên Messenger: Enter = gửi, Shift+Enter =

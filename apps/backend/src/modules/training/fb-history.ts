@@ -138,6 +138,28 @@ export function isUsableGoldReply(text?: string | null): boolean {
   return t.length >= 6 && t.length <= 200 && GOLD_RENTAL.test(t) && !GOLD_NOISE.test(t);
 }
 
+export interface LiveTurn {
+  role: 'customer' | 'staff';
+  text: string;
+}
+/**
+ * Từ hội thoại KẾT THÚC bằng câu NHÂN VIÊN vừa gửi -> cặp vàng {ngữ cảnh, reply}
+ * để thu thụ động (live capture). Trả null nếu không hợp lệ: câu cuối không phải
+ * của NV, chưa có lượt khách nào để tư vấn, hoặc câu nhiễu (isUsableGoldReply).
+ */
+export function extractLivePair(
+  turns: LiveTurn[],
+): { conversation: LiveTurn[]; finalText: string } | null {
+  if (!Array.isArray(turns) || !turns.length) return null;
+  const last = turns[turns.length - 1];
+  if (!last || last.role !== 'staff') return null;
+  const finalText = (last.text ?? '').trim();
+  if (!isUsableGoldReply(finalText)) return null;
+  const conversation = turns.slice(0, -1);
+  if (!conversation.some((t) => t.role === 'customer')) return null;
+  return { conversation, finalText };
+}
+
 export interface GoldTurn {
   role: 'customer' | 'staff';
   text: string;

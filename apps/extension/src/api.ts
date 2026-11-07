@@ -96,6 +96,18 @@ export async function aiFeedback(req: AiFeedbackRequest): Promise<void> {
   }
 }
 
+// Thu THỤ ĐỘNG: gửi {hội thoại kết thúc bằng câu NV vừa gửi} để backend ghi cặp
+// vàng dù nhân viên KHÔNG bấm "Gợi ý". Việc phụ — lỗi thì nuốt.
+export async function aiCapture(
+  conversation: { role: 'customer' | 'staff'; text: string }[],
+): Promise<void> {
+  try {
+    await authedFetch('/ai/capture', { method: 'POST', body: { conversation } });
+  } catch {
+    // im lặng
+  }
+}
+
 export async function saveCustomer(payload: Record<string, unknown>) {
   const res = await authedFetch('/customers', { method: 'POST', body: payload });
   return res.json();
